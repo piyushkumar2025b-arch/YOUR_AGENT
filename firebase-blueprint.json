@@ -1,0 +1,33 @@
+{
+  "rules": {
+    "workspaces": {
+      "description": "User code workspaces, files, and project structures",
+      "fields": {
+        "userId": "string",
+        "name": "string",
+        "files": "array",
+        "emptyFolders": "array",
+        "updatedAt": "timestamp"
+      }
+    },
+    "chat_sessions": {
+      "description": "Agent chat sessions and message history",
+      "fields": {
+        "userId": "string",
+        "title": "string",
+        "messages": "array",
+        "updatedAt": "timestamp"
+      }
+    },
+    "agent_audit_logs": {
+      "description": "System and agent execution audit logs",
+      "fields": {
+        "userId": "string",
+        "agentId": "string",
+        "actionType": "string",
+        "message": "string",
+        "timestamp": "timestamp"
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Remix Remix Remix: OpenRouter Code Agent",
+  "description": "An AI-powered developer agent workspace that connects with OpenRouter to generate, preview, and download custom codebases across any language.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
