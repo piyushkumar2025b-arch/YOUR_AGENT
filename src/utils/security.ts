@@ -111,7 +111,11 @@ export async function safeFetch<T>(
     while (attempt <= retries) {
       attempt++;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      const timeoutId = setTimeout(() => {
+        try {
+          controller.abort("Request timeout");
+        } catch {}
+      }, timeoutMs);
 
       try {
         const response = await fetch(url, {
@@ -133,7 +137,15 @@ export async function safeFetch<T>(
 
       } catch (err: any) {
         clearTimeout(timeoutId);
-        if (err.name === "AbortError") {
+        const isAbort =
+          err?.name === "AbortError" ||
+          err?.name === "CanceledError" ||
+          err?.code === 20 ||
+          (err?.message && String(err.message).toLowerCase().includes("abort")) ||
+          (err?.message && String(err.message).toLowerCase().includes("signal is aborted")) ||
+          controller.signal.aborted;
+
+        if (isAbort) {
           lastError = `Request timed out after ${timeoutMs}ms`;
         } else {
           lastError = err.message || "Network request failed";

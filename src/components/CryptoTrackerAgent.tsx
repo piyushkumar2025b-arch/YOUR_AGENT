@@ -73,7 +73,9 @@ export const CryptoTrackerAgent: React.FC<CryptoTrackerAgentProps> = ({
     const controller = new AbortController();
     fetchCryptoPrices(controller.signal);
     return () => {
-      controller.abort();
+      try {
+        controller.abort("Component unmounted");
+      } catch {}
     };
   }, []);
 
@@ -112,7 +114,13 @@ export const CryptoTrackerAgent: React.FC<CryptoTrackerAgentProps> = ({
 
       throw new Error("Unable to reach cryptocurrency market servers");
     } catch (e: any) {
-      if (e?.name === "AbortError" || e?.message?.includes("aborted")) {
+      if (
+        e?.name === "AbortError" ||
+        e?.name === "CanceledError" ||
+        e?.message?.includes("abort") ||
+        e?.message?.includes("signal is aborted") ||
+        signal?.aborted
+      ) {
         return;
       }
       setErrorMsg(e.message || "Failed to load crypto market data");

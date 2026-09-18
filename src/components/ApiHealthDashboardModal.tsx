@@ -430,7 +430,11 @@ export const ApiHealthDashboardModal: React.FC<ApiHealthDashboardModalProps> = (
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const timeoutId = setTimeout(() => {
+        try {
+          controller.abort("Request Timeout (>8000ms)");
+        } catch {}
+      }, 8000);
 
       const res = await fetch(target.endpoint, {
         method: target.method,
@@ -482,7 +486,12 @@ export const ApiHealthDashboardModal: React.FC<ApiHealthDashboardModalProps> = (
       const latencyMs = Math.round(endTime - startTime);
 
       let status: ApiEndpointTest["status"] = "offline";
-      let details = err.name === "AbortError" ? "Request Timeout (>8000ms)" : err.message || "Network error";
+      const isAbort =
+        err?.name === "AbortError" ||
+        err?.name === "CanceledError" ||
+        (err?.message && String(err.message).toLowerCase().includes("abort")) ||
+        (err?.message && String(err.message).toLowerCase().includes("signal is aborted"));
+      let details = isAbort ? "Request Timeout (>8000ms)" : err.message || "Network error";
 
       // Special handling for local relative / CORS
       if (id === "gcal") {

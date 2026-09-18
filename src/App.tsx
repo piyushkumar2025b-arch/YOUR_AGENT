@@ -793,12 +793,13 @@ export default function App() {
       const modelsList = await getOrFetchModels(apiKey, signal, forceRefresh);
       setModels(modelsList);
     } catch (err: any) {
-      if (
+      const isAbort =
         signal?.aborted ||
         err?.name === "AbortError" ||
         err?.name === "CanceledError" ||
-        (err?.message && (err.message.includes("abort") || err.message.includes("aborted")))
-      ) {
+        err?.code === 20 ||
+        (err?.message && (err.message.includes("abort") || err.message.includes("aborted") || err.message.includes("signal is aborted")));
+      if (isAbort) {
         return;
       }
       console.debug("Failed to fetch models from server proxy", err);
@@ -817,7 +818,9 @@ export default function App() {
 
     return () => {
       clearTimeout(timer);
-      controller.abort();
+      try {
+        controller.abort("Component unmounted or API key updated");
+      } catch {}
     };
   }, [apiKey]);
 
@@ -2498,7 +2501,9 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
 
   const handleStopPrompt = useCallback(() => {
     if (promptAbortControllerRef.current) {
-      promptAbortControllerRef.current.abort();
+      try {
+        promptAbortControllerRef.current.abort("Generation stopped by user");
+      } catch {}
       promptAbortControllerRef.current = null;
     }
     setIsAgentProcessing(false);
@@ -2510,7 +2515,9 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
     if (!inputPrompt.trim() || isAgentProcessing) return;
 
     if (promptAbortControllerRef.current) {
-      promptAbortControllerRef.current.abort();
+      try {
+        promptAbortControllerRef.current.abort("Superseded by new prompt");
+      } catch {}
     }
     const currentController = new AbortController();
     promptAbortControllerRef.current = currentController;
@@ -2566,12 +2573,15 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
     const startTime = Date.now();
 
     try {
+      const sessionToken = await ensureSessionToken().catch(() => "");
+      const authHeaders = getAuthHeaders(apiKey);
+      if (sessionToken && !authHeaders["X-Session-Id"]) {
+        authHeaders["X-Session-Id"] = sessionToken;
+      }
+
       const response = await fetch("/api/openrouter/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": apiKey ? `Bearer ${apiKey}` : ""
-        },
+        headers: authHeaders,
         signal: currentController.signal,
         body: JSON.stringify({
           model: selectedModel,
@@ -2751,8 +2761,17 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
       }
 
     } catch (err: any) {
-      if (err?.name === "AbortError") {
-        console.warn("Prompt request was aborted");
+      const isAbort =
+        err?.name === "AbortError" ||
+        err?.name === "CanceledError" ||
+        err?.code === 20 ||
+        currentController.signal.aborted ||
+        (err?.message && String(err.message).toLowerCase().includes("abort")) ||
+        (err?.message && String(err.message).toLowerCase().includes("signal is aborted")) ||
+        (err?.message && String(err.message).toLowerCase().includes("canceled"));
+
+      if (isAbort) {
+        console.debug("Prompt request was aborted");
         return;
       }
       console.error("Agent chat execution error:", err);

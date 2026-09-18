@@ -21,16 +21,17 @@ import {
 import { VirtualFile } from "../types";
 import { TouchFXOverlay } from "./TouchFXOverlay";
 import { ErrorNotificationToast } from "./ErrorNotificationToast";
+import { safeLazy } from "../utils/lazyRetry";
 
-const MathPlotterModal = React.lazy(() => import("./MathPlotterModal").then(m => ({ default: m.MathPlotterModal })));
-const RunnerModulesModal = React.lazy(() => import("./RunnerModulesModal").then(m => ({ default: m.RunnerModulesModal })));
-const CodeRunnerModal = React.lazy(() => import("./CodeRunnerModal").then(m => ({ default: m.CodeRunnerModal })));
-const KeyboardShortcutsModal = React.lazy(() => import("./KeyboardShortcutsModal").then(m => ({ default: m.KeyboardShortcutsModal })));
-const SystemSecurityShieldModal = React.lazy(() => import("./SystemSecurityShieldModal").then(m => ({ default: m.SystemSecurityShieldModal })));
-const SystemErrorLogCenterModal = React.lazy(() => import("./SystemErrorLogCenterModal").then(m => ({ default: m.SystemErrorLogCenterModal })));
-const ApiHealthDashboardModal = React.lazy(() => import("./ApiHealthDashboardModal").then(m => ({ default: m.ApiHealthDashboardModal })));
-const ThemeSelectorModal = React.lazy(() => import("./ThemeSelectorModal").then(m => ({ default: m.ThemeSelectorModal })));
-const GoogleWorkspaceModal = React.lazy(() => import("./GoogleWorkspaceModal").then(m => ({ default: m.GoogleWorkspaceModal })));
+const MathPlotterModal = safeLazy(() => import("./MathPlotterModal"), "MathPlotterModal");
+const RunnerModulesModal = safeLazy(() => import("./RunnerModulesModal"), "RunnerModulesModal");
+const CodeRunnerModal = safeLazy(() => import("./CodeRunnerModal"), "CodeRunnerModal");
+const KeyboardShortcutsModal = safeLazy(() => import("./KeyboardShortcutsModal"), "KeyboardShortcutsModal");
+const SystemSecurityShieldModal = safeLazy(() => import("./SystemSecurityShieldModal"), "SystemSecurityShieldModal");
+const SystemErrorLogCenterModal = safeLazy(() => import("./SystemErrorLogCenterModal"), "SystemErrorLogCenterModal");
+const ApiHealthDashboardModal = safeLazy(() => import("./ApiHealthDashboardModal"), "ApiHealthDashboardModal");
+const ThemeSelectorModal = safeLazy(() => import("./ThemeSelectorModal"), "ThemeSelectorModal");
+const GoogleWorkspaceModal = safeLazy(() => import("./GoogleWorkspaceModal"), "GoogleWorkspaceModal");
 
 interface AppModalsContainerProps {
   theme: "light" | "dark" | string;

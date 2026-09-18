@@ -55,16 +55,19 @@ export async function getOrFetchModels(
       }
     }
   } catch (err: any) {
-    if (
+    const isAbort =
       signal?.aborted ||
       err?.name === "AbortError" ||
       err?.name === "CanceledError" ||
-      (err?.message && (err.message.includes("abort") || err.message.includes("aborted")))
-    ) {
-      // Re-throw or ignore abort
-      throw err;
+      err?.code === 20 ||
+      (err?.message && String(err.message).toLowerCase().includes("abort")) ||
+      (err?.message && String(err.message).toLowerCase().includes("signal is aborted"));
+
+    if (isAbort) {
+      if (cachedModels) return cachedModels.models;
+      return popularModels;
     }
-    console.debug("Failed to fetch models from server proxy:", err);
+    console.debug("Failed to fetch models from server proxy:", err?.message || err);
   }
 
   // Fallback to existing cached models or popular models

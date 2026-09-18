@@ -65,13 +65,15 @@ class ErrorHandlerService {
       const errCode = (err && typeof err === "object" && "code" in err) ? err.code : 0;
       return (
         errName === "AbortError" ||
+        errName === "CanceledError" ||
         errCode === 20 ||
         lowerMsg.includes("aborterror") ||
         lowerMsg.includes("abort") ||
         lowerMsg.includes("signal is aborted") ||
         lowerMsg.includes("the user aborted a request") ||
         lowerMsg.includes("canceled") ||
-        lowerMsg.includes("cancelled")
+        lowerMsg.includes("cancelled") ||
+        lowerMsg.includes("operation was aborted")
       );
     };
 
@@ -79,6 +81,18 @@ class ErrorHandlerService {
     window.addEventListener("error", (event: ErrorEvent) => {
       const msg = event.message || (event.error && (event.error.message || event.error.name)) || "";
       if (isAbortError(event.error, msg)) {
+        try { event.preventDefault(); } catch {}
+        return;
+      }
+
+      // Suppress dynamic import chunk mismatch errors (e.g. from previous deployment hashes)
+      if (
+        msg.includes("Failed to fetch dynamically imported module") ||
+        msg.includes("error loading dynamically imported module") ||
+        msg.includes("Importing a module script failed")
+      ) {
+        try { event.preventDefault(); } catch {}
+        console.warn("[ErrorHandler] Caught stale dynamic chunk load event:", msg);
         return;
       }
 
@@ -108,9 +122,35 @@ class ErrorHandlerService {
 
       // Ignore intentional cancellations and aborts (e.g. AbortController / user navigation / timeout cleanups)
       if (isAbortError(reason, message)) {
+        try { event.preventDefault(); } catch {}
         return;
       }
 
+      // Suppress dynamic chunk load errors
+      if (
+        message.includes("Failed to fetch dynamically imported module") ||
+        message.includes("error loading dynamically imported module") ||
+        message.includes("Importing a module script failed")
+      ) {
+        try { event.preventDefault(); } catch {}
+        console.warn("[ErrorHandler] Caught stale dynamic chunk rejection:", message);
+        return;
+      }
+
+      // For standard "Failed to fetch" (e.g. server restart or offline), mark handled to avoid uncaught crash
+      if (message.toLowerCase().includes("failed to fetch")) {
+        try { event.preventDefault(); } catch {}
+        this.logError({
+          message: `Network gateway connection interrupted: ${message}`,
+          category: "Network",
+          severity: "warning",
+          source: "network",
+          stack
+        });
+        return;
+      }
+
+      try { event.preventDefault(); } catch {}
       this.logError({
         message,
         category: "API",
@@ -243,7 +283,11 @@ class ErrorHandlerService {
     timeoutMs: number = 10000
   ): Promise<Response> {
     const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeoutMs);
+    const id = setTimeout(() => {
+      try {
+        controller.abort("Request timeout");
+      } catch {}
+    }, timeoutMs);
 
     try {
       const response = await fetch(url, {
@@ -267,8 +311,10 @@ class ErrorHandlerService {
       clearTimeout(id);
       const isAbort =
         err?.name === "AbortError" ||
+        err?.name === "CanceledError" ||
         err?.code === 20 ||
         (err?.message || "").toLowerCase().includes("abort") ||
+        (err?.message || "").toLowerCase().includes("signal is aborted") ||
         controller.signal.aborted;
 
       if (!isAbort) {
