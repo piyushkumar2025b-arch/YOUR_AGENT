@@ -13,7 +13,8 @@ export interface CodeExecutionResponse {
   exitCode: number;
   executionTimeMs: number;
   memoryUsageMb: string;
-  runnerType: "local_node" | "local_python" | "openrouter_ai" | "browser_eval";
+  runnerType: "local_node" | "local_python" | "openrouter_ai" | "browser_eval" | "simulated_ai_analysis";
+  isSimulated?: boolean;
   modelUsed?: string;
   explanation?: string;
 }
@@ -178,26 +179,28 @@ ${req.code}
       try {
         const parsed = JSON.parse(cleanJson);
         return {
-          stdout: parsed.stdout || "Program executed cleanly with no stdout.",
-          stderr: parsed.stderr || "",
+          stdout: parsed.stdout || "No standard output produced.",
+          stderr: (parsed.stderr ? parsed.stderr + "\n" : "") + "[Notice: Simulated / AI Analysis — Code output synthesized by AI model, not executed on native compiler.]",
           exitCode: typeof parsed.exitCode === "number" ? parsed.exitCode : 0,
           executionTimeMs: parsed.executionTimeMs || duration,
           memoryUsageMb: parsed.memoryUsageMb || "14.5 MB",
-          runnerType: "openrouter_ai",
+          runnerType: "simulated_ai_analysis",
+          isSimulated: true,
           modelUsed: data.model || chosenModel,
-          explanation: parsed.explanation || "Program executed via OpenRouter model runtime."
+          explanation: "[SIMULATED / AI ANALYSIS] " + (parsed.explanation || "Output synthesized via OpenRouter model.")
         };
       } catch (parseErr) {
         // Raw content fallback
         return {
           stdout: content,
-          stderr: "",
+          stderr: "[Notice: Simulated / AI Analysis — Code output synthesized by AI model, not executed on native compiler.]",
           exitCode: 0,
           executionTimeMs: duration,
           memoryUsageMb: "16.0 MB",
-          runnerType: "openrouter_ai",
+          runnerType: "simulated_ai_analysis",
+          isSimulated: true,
           modelUsed: chosenModel,
-          explanation: "Executed via OpenRouter AI model."
+          explanation: "[SIMULATED / AI ANALYSIS] Output synthesized via OpenRouter AI model."
         };
       }
     }
@@ -330,13 +333,14 @@ ${req.code}
   }
 
   return {
-    stdout: "Program execution simulated.",
-    stderr: "",
+    stdout: "No native compiler available for this language in browser environment.",
+    stderr: "[Notice: Simulated / AI Analysis — Code was not executed on a native runtime.]",
     exitCode: 0,
     executionTimeMs: Math.round(performance.now() - startTime),
     memoryUsageMb: "12.0 MB",
-    runnerType: "openrouter_ai",
+    runnerType: "simulated_ai_analysis",
+    isSimulated: true,
     modelUsed: chosenModel,
-    explanation: `Executed file ${req.filePath} using OpenRouter runtime.`
+    explanation: `[SIMULATED / AI ANALYSIS] Execution of ${req.filePath} analyzed via AI model.`
   };
 }

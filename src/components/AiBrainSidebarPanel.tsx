@@ -8,6 +8,7 @@ import {
   Search,
   Trash2,
   Send,
+  Square,
   Paperclip,
   Bot,
   Flame,
@@ -16,6 +17,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { Message, Model, VirtualFile } from "../types";
 import { ThinkingPlanCard } from "./ThinkingPlanCard";
+import { ChatMessageItem } from "./ChatMessageItem";
 
 interface AiBrainSidebarPanelProps {
   theme: "light" | "dark" | string;
@@ -38,6 +40,7 @@ interface AiBrainSidebarPanelProps {
   inputPrompt: string;
   setInputPrompt: React.Dispatch<React.SetStateAction<string>>;
   handleSendPrompt: (e?: React.FormEvent) => void;
+  handleStopPrompt?: () => void;
   attachedFileForChat: string;
   setAttachedFileForChat: React.Dispatch<React.SetStateAction<string>>;
   selectedAgentForChat: string;
@@ -69,6 +72,7 @@ export const AiBrainSidebarPanel: React.FC<AiBrainSidebarPanelProps> = ({
   inputPrompt,
   setInputPrompt,
   handleSendPrompt,
+  handleStopPrompt,
   attachedFileForChat,
   setAttachedFileForChat,
   selectedAgentForChat,
@@ -265,71 +269,13 @@ export const AiBrainSidebarPanel: React.FC<AiBrainSidebarPanelProps> = ({
       }`}>
         <AnimatePresence initial={false}>
           {messages.map((msg) => (
-            <motion.div
+            <ChatMessageItem
               key={msg.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
-            >
-              <div className="text-[10px] font-bold text-slate-400 mb-1 px-1 flex items-center gap-1.5">
-                <span className={msg.role === "assistant" ? "text-indigo-500 font-semibold" : (isDark ? "text-zinc-400" : "text-slate-500")}>
-                  {msg.role === "assistant" ? "⚡ AGENT" : "👤 YOU"}
-                </span>
-                <span>•</span>
-                <span>{msg.timestamp}</span>
-              </div>
-
-              <div className={`max-w-[88%] rounded-2xl p-3.5 text-xs leading-relaxed font-normal shadow-xs ${
-                msg.role === "user"
-                  ? "rounded-tl-none bg-indigo-600 text-white"
-                  : msg.id.includes("error")
-                    ? "rounded-tr-none border border-rose-500/20 bg-rose-500/10 text-rose-300"
-                    : isDark
-                      ? "rounded-tr-none border border-zinc-800 bg-[#18181b] text-zinc-200"
-                      : "rounded-tr-none border border-slate-200 bg-white text-slate-700"
-              }`}>
-                <div className="whitespace-pre-wrap break-words space-y-2">
-                  {msg.role === "assistant" && (
-                    <ThinkingPlanCard
-                      content={msg.content}
-                      theme={theme === "light" ? "light" : "dark"}
-                      onOpenPreview={() => setActiveTab("preview")}
-                    />
-                  )}
-                  {msg.content
-                    .replace(/<thinking_plan>[\s\S]*?<\/thinking_plan>/gi, "")
-                    .split("\n\n")
-                    .map((para, pi) => {
-                      if (para.startsWith("### ")) {
-                        return <h4 key={pi} className="text-xs font-bold text-indigo-400 uppercase tracking-wide mt-2">{para.replace("### ", "")}</h4>;
-                      }
-                      if (para.startsWith("## ")) {
-                        return <h3 key={pi} className="text-sm font-bold text-indigo-400 mt-3">{para.replace("## ", "")}</h3>;
-                      }
-                      return <p key={pi}>{para}</p>;
-                    })}
-                </div>
-
-                {msg.role === "assistant" && !msg.id.includes("error") && (
-                  <div className={`mt-3 pt-2.5 border-t flex flex-wrap items-center gap-1.5 text-[10px] font-mono ${
-                    isDark ? "border-zinc-800/80 text-zinc-400" : "border-slate-200 text-slate-500"
-                  }`}>
-                    <span className="flex items-center gap-1 text-emerald-500 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20" title="Total response output duration">
-                      ⏱️ Output Time: {msg.stats ? `${msg.stats.durationSeconds}s` : "1.42s"}
-                    </span>
-                    <span className="flex items-center gap-1 text-indigo-400 font-medium bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20" title="High Token Capacity Window (65,536 limit)">
-                      ⚡ {msg.stats ? `${msg.stats.tokensEstimated.toLocaleString()} tokens` : `${Math.max(150, Math.ceil((msg.content || "").length / 3.8)).toLocaleString()} tokens`} <span className="text-[9px] text-indigo-300/70">(Limit: 65,536)</span>
-                    </span>
-                    <span className="flex items-center gap-1 text-blue-400 font-medium bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20" title="Token Generation Speed">
-                      🚀 {msg.stats ? `${msg.stats.tokensPerSec} t/s` : `${Math.round((Math.ceil((msg.content || "").length / 3.8)) / 1.4)} t/s`}
-                    </span>
-                    <span className="flex items-center gap-1 text-purple-400 font-medium bg-purple-500/10 px-2 py-0.5 rounded-md border border-purple-500/20" title="Token Compression Savings">
-                      📦 88% Zipped Memory
-                    </span>
-                  </div>
-                )}
-              </div>
-            </motion.div>
+              msg={msg}
+              theme={theme}
+              isDark={isDark}
+              onOpenPreview={() => setActiveTab("preview")}
+            />
           ))}
         </AnimatePresence>
 
@@ -345,9 +291,22 @@ export const AiBrainSidebarPanel: React.FC<AiBrainSidebarPanelProps> = ({
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping"></span>
                 ⚡ AGENT WORKING & GENERATING CODE...
               </span>
-              <span className="font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                Max Limit: 65,536 Tokens
-              </span>
+              <div className="flex items-center gap-2">
+                {handleStopPrompt && (
+                  <button
+                    type="button"
+                    onClick={handleStopPrompt}
+                    className="px-2 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/40 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all"
+                    title="Stop AI code generation"
+                  >
+                    <Square className="w-2.5 h-2.5 fill-current" />
+                    Stop
+                  </button>
+                )}
+                <span className="font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                  Max Limit: 65,536 Tokens
+                </span>
+              </div>
             </div>
             <div className={`border rounded-2xl p-4 w-full space-y-3 shadow-md ${
               isDark ? "bg-[#18181b] border-zinc-800 text-zinc-300" : "bg-white border-slate-200 text-slate-700"
@@ -397,14 +356,25 @@ export const AiBrainSidebarPanel: React.FC<AiBrainSidebarPanelProps> = ({
                 : "bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
             }`}
           />
-          <button
-            type="submit"
-            disabled={!inputPrompt.trim() || isAgentProcessing}
-            className="absolute right-3.5 p-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-lg transition-all cursor-pointer shadow-md"
-            title="Send prompt to agent"
-          >
-            <Send className="w-4 h-4" />
-          </button>
+          {isAgentProcessing ? (
+            <button
+              type="button"
+              onClick={handleStopPrompt}
+              className="absolute right-3.5 p-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition-all cursor-pointer shadow-md flex items-center justify-center"
+              title="Stop AI Generation"
+            >
+              <Square className="w-4 h-4 fill-current" />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={!inputPrompt.trim()}
+              className="absolute right-3.5 p-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-lg transition-all cursor-pointer shadow-md"
+              title="Send prompt to agent"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          )}
         </form>
 
         {/* Extended controls bar: File attachment context selector & agent target mode */}

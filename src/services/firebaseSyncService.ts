@@ -21,14 +21,15 @@ export interface FirebaseSyncStatus {
   mode: "cloud" | "offline";
 }
 
-const WORKSPACE_DOC_ID = "default_workspace";
-
 // Save workspace files to Firebase Firestore
 export async function syncFilesToFirebase(files: VirtualFile[], emptyFolders: string[] = []): Promise<boolean> {
   try {
-    await ensureAuth().catch(() => null);
-    const docRef = doc(db, "workspaces", WORKSPACE_DOC_ID);
+    const user = await ensureAuth().catch(() => null);
+    if (!user || !user.uid) return false;
+
+    const docRef = doc(db, "workspaces", user.uid);
     await setDoc(docRef, {
+      userId: user.uid,
       files: files.map(f => ({
         path: f.path,
         content: f.content,
@@ -50,8 +51,10 @@ export async function syncFilesToFirebase(files: VirtualFile[], emptyFolders: st
 // Load workspace files from Firebase Firestore with safety timeout
 export async function loadFilesFromFirebase(): Promise<{ files: VirtualFile[]; emptyFolders: string[] } | null> {
   try {
-    await ensureAuth().catch(() => null);
-    const docRef = doc(db, "workspaces", WORKSPACE_DOC_ID);
+    const user = await ensureAuth().catch(() => null);
+    if (!user || !user.uid) return null;
+
+    const docRef = doc(db, "workspaces", user.uid);
     
     // Safety timeout: if Firestore is offline, return null after 3s so the app uses local storage without hanging
     const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
@@ -84,11 +87,14 @@ export async function loadFilesFromFirebase(): Promise<{ files: VirtualFile[]; e
 // Sync chat messages to Firebase Firestore
 export async function syncMessagesToFirebase(messages: Message[]): Promise<boolean> {
   try {
-    await ensureAuth().catch(() => null);
-    const docRef = doc(db, "chat_sessions", "current_session");
+    const user = await ensureAuth().catch(() => null);
+    if (!user || !user.uid) return false;
+
+    const docRef = doc(db, "chat_sessions", user.uid);
     // Limit to latest 50 messages to keep document light
     const trimmed = messages.slice(-50);
     await setDoc(docRef, {
+      userId: user.uid,
       messages: trimmed,
       updatedAt: serverTimestamp(),
       count: trimmed.length
@@ -103,8 +109,10 @@ export async function syncMessagesToFirebase(messages: Message[]): Promise<boole
 // Load chat messages from Firebase Firestore with safety timeout
 export async function loadMessagesFromFirebase(): Promise<Message[] | null> {
   try {
-    await ensureAuth().catch(() => null);
-    const docRef = doc(db, "chat_sessions", "current_session");
+    const user = await ensureAuth().catch(() => null);
+    if (!user || !user.uid) return null;
+
+    const docRef = doc(db, "chat_sessions", user.uid);
     
     const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
     
@@ -133,11 +141,14 @@ export async function loadMessagesFromFirebase(): Promise<Message[] | null> {
 // Save audit log entry to Firebase Firestore
 export async function logActionToFirebase(action: { type: string; message: string; path?: string }): Promise<void> {
   try {
-    await ensureAuth().catch(() => null);
+    const user = await ensureAuth().catch(() => null);
+    if (!user || !user.uid) return;
+
     const logsCol = collection(db, "agent_audit_logs");
     const newDoc = doc(logsCol);
     await setDoc(newDoc, {
       ...action,
+      userId: user.uid,
       timestamp: serverTimestamp()
     });
   } catch (err) {

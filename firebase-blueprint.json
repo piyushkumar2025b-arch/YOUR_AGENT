@@ -1,33 +1,56 @@
 {
-  "rules": {
-    "workspaces": {
-      "description": "User code workspaces, files, and project structures",
-      "fields": {
-        "userId": "string",
-        "name": "string",
-        "files": "array",
-        "emptyFolders": "array",
-        "updatedAt": "timestamp"
-      }
+  "entities": {
+    "Workspace": {
+      "title": "Workspace",
+      "description": "User code workspace with virtual files",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "files": { "type": "array" },
+        "emptyFolders": { "type": "array" },
+        "updatedAt": { "type": "string" },
+        "fileCount": { "type": "number" }
+      },
+      "required": ["userId", "files"]
     },
-    "chat_sessions": {
-      "description": "Agent chat sessions and message history",
-      "fields": {
-        "userId": "string",
-        "title": "string",
-        "messages": "array",
-        "updatedAt": "timestamp"
-      }
+    "ChatSession": {
+      "title": "ChatSession",
+      "description": "User chat session with message history",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "messages": { "type": "array" },
+        "updatedAt": { "type": "string" },
+        "count": { "type": "number" }
+      },
+      "required": ["userId", "messages"]
     },
-    "agent_audit_logs": {
-      "description": "System and agent execution audit logs",
-      "fields": {
-        "userId": "string",
-        "agentId": "string",
-        "actionType": "string",
-        "message": "string",
-        "timestamp": "timestamp"
-      }
+    "AgentAuditLog": {
+      "title": "AgentAuditLog",
+      "description": "Audit log for agent actions",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "agentId": { "type": "string" },
+        "actionType": { "type": "string" },
+        "message": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["userId", "actionType", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/workspaces/{userId}": {
+      "schema": "Workspace",
+      "description": "Individual user workspace files and folder structure"
+    },
+    "/chat_sessions/{userId}": {
+      "schema": "ChatSession",
+      "description": "Individual user chat conversation history"
+    },
+    "/agent_audit_logs/{logId}": {
+      "schema": "AgentAuditLog",
+      "description": "System execution audit logs recorded by users"
     }
   }
 }

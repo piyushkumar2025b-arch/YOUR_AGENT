@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { 
   Sparkles, 
   Download, 
@@ -106,7 +106,9 @@ import { compressMessageHistory, compressWorkspaceFileContext } from "./services
 import { exportSingleFile, exportFolderZip, exportWorkspaceZip, exportWordDocument, exportPdfDocument } from "./services/workspaceExportService";
 import { popularModels, deduplicateModels, getFileBadgeAndIcon } from "./utils/fileHelpers";
 import { highlightCode } from "./utils/syntaxHighlighter";
-import { TOP_REAL_CHARTS } from "./components/MusicPlayer";
+import { TOP_REAL_CHARTS } from "./data/musicTracks";
+import { ensureSessionToken } from "./utils/apiAuth";
+import { getOrFetchModels } from "./utils/modelsCache";
 const LandingPage = React.lazy(() => import("./components/LandingPage").then(m => ({ default: m.LandingPage })));
 const SystemSecurityShieldModal = React.lazy(() => import("./components/SystemSecurityShieldModal").then(m => ({ default: m.SystemSecurityShieldModal })));
 import {
@@ -243,14 +245,7 @@ export default function App() {
 
   // Ensure session auth token is active for all API and sandbox requests (BUG-V3-015)
   useEffect(() => {
-    if (!localStorage.getItem("app_auth_token")) {
-      fetch("/api/auth/guest-session", { method: "POST" })
-        .then(r => r.json())
-        .then(d => {
-          if (d?.token) localStorage.setItem("app_auth_token", d.token);
-        })
-        .catch(() => {});
-    }
+    ensureSessionToken().catch(() => {});
   }, []);
 
   // Disable right clicks, developer tools inspection shortcuts, and image dragging across the app
@@ -392,14 +387,7 @@ export default function App() {
     setWorkspaceLoadingMsg(authType === "guest" ? "Initializing Instant Guest Workspace..." : "Initializing Multi-Agent Environment...");
 
     // Ensure session auth token exists for sandbox & code execution
-    if (!localStorage.getItem("app_auth_token")) {
-      fetch("/api/auth/guest-session", { method: "POST" })
-        .then(r => r.json())
-        .then(d => {
-          if (d?.token) localStorage.setItem("app_auth_token", d.token);
-        })
-        .catch(() => {});
-    }
+    ensureSessionToken().catch(() => {});
 
     setTimeout(() => {
       setWorkspaceLoadingMsg(authType === "guest" ? "Activating Guest Sandbox & Terminal Node..." : `Mounting Workspace "${finalName}"...`);
@@ -797,38 +785,13 @@ export default function App() {
   }, [messages, brainPersonality]);
 
   // ----------------------------------------------------
-  // Fetch Models on Startup/API Key Update (Debounced & Abortable)
+  // Fetch Models on Startup/API Key Update (Debounced, Cached & Abortable)
   // ----------------------------------------------------
-  const fetchOpenRouterModels = async (signal?: AbortSignal) => {
+  const fetchOpenRouterModels = async (signal?: AbortSignal, forceRefresh: boolean = false) => {
     setIsLoadingModels(true);
     try {
-      const response = await fetch("/api/openrouter/models", {
-        headers: {
-          "Authorization": apiKey ? `Bearer ${apiKey}` : ""
-        },
-        signal
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data && data.data && Array.isArray(data.data)) {
-          // Keep OpenRouter models that have complete IDs and names
-          const fetched: Model[] = data.data
-            .map((m: any) => ({
-              id: m.id,
-              name: m.name || m.id.split("/").pop() || m.id
-            }))
-            .slice(0, 150); // Limit count for smooth rendering
-          
-          // Merge curated ones with fetched ones
-          const combined = [...popularModels];
-          fetched.forEach(f => {
-            if (!combined.some(c => c.id === f.id)) {
-              combined.push(f);
-            }
-          });
-          setModels(deduplicateModels(combined));
-        }
-      }
+      const modelsList = await getOrFetchModels(apiKey, signal, forceRefresh);
+      setModels(modelsList);
     } catch (err: any) {
       if (
         signal?.aborted ||
@@ -838,7 +801,7 @@ export default function App() {
       ) {
         return;
       }
-      console.error("Failed to fetch models from server proxy", err);
+      console.debug("Failed to fetch models from server proxy", err);
     } finally {
       if (!signal?.aborted) {
         setIsLoadingModels(false);
@@ -2533,6 +2496,15 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
   // ----------------------------------------------------
   const promptAbortControllerRef = useRef<AbortController | null>(null);
 
+  const handleStopPrompt = useCallback(() => {
+    if (promptAbortControllerRef.current) {
+      promptAbortControllerRef.current.abort();
+      promptAbortControllerRef.current = null;
+    }
+    setIsAgentProcessing(false);
+    addAgentAction("info", "AI agent generation stopped by user.");
+  }, [addAgentAction]);
+
   const handleSendPrompt = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!inputPrompt.trim() || isAgentProcessing) return;
@@ -2606,7 +2578,8 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
           messages: formattedHistory,
           temperature: 0.1,
           max_tokens: 65536,
-          top_p: 0.95
+          top_p: 0.95,
+          stream: true
         })
       });
 
@@ -2615,8 +2588,70 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
         throw new Error(errorData?.error?.message || `Backend API error (${response.status})`);
       }
 
-      const data = await response.json();
-      const assistantText = data.choices?.[0]?.message?.content || "No text response generated.";
+      const contentType = response.headers.get("content-type") || "";
+      let assistantText = "";
+
+      if (contentType.includes("text/event-stream") && response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let sseBuffer = "";
+        const streamingMsgId = `msg-${Date.now()}-assistant`;
+        let lastUpdateTime = 0;
+        let pendingText = "";
+
+        // Insert initial placeholder assistant message
+        setMessages(prev => [
+          ...prev,
+          {
+            id: streamingMsgId,
+            role: "assistant",
+            content: "",
+            timestamp: new Date().toLocaleTimeString()
+          }
+        ]);
+
+        const flushUpdate = (immediate = false) => {
+          const now = Date.now();
+          if (immediate || now - lastUpdateTime >= 50) {
+            lastUpdateTime = now;
+            const textToSet = pendingText;
+            setMessages(prev =>
+              prev.map(m => (m.id === streamingMsgId ? { ...m, content: textToSet } : m))
+            );
+          }
+        };
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            sseBuffer += decoder.decode(value, { stream: true });
+            const lines = sseBuffer.split("\n");
+            sseBuffer = lines.pop() || "";
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed.startsWith("data: ")) continue;
+              const payload = trimmed.slice(6).trim();
+              if (payload === "[DONE]") continue;
+              try {
+                const parsedChunk = JSON.parse(payload);
+                const delta = parsedChunk.choices?.[0]?.delta?.content || "";
+                if (delta) {
+                  pendingText += delta;
+                  flushUpdate(false);
+                }
+              } catch {}
+            }
+          }
+        } finally {
+          flushUpdate(true);
+        }
+        assistantText = pendingText || "No text response generated.";
+      } else {
+        const data = await response.json();
+        assistantText = data.choices?.[0]?.message?.content || "No text response generated.";
+      }
 
       // Calculate Execution & Token Timing Statistics
       const durationSeconds = Number(((Date.now() - startTime) / 1000).toFixed(2));
@@ -2628,6 +2663,24 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
         tokensPerSec,
         compressedContextRatio: "88% Zipped"
       };
+
+      // Finalize the message stats or append if non-streaming
+      setMessages(prev => {
+        const existingIdx = prev.findIndex(m => m.role === "assistant" && m.content === assistantText);
+        if (existingIdx !== -1) {
+          return prev.map((m, idx) => (idx === existingIdx ? { ...m, stats } : m));
+        }
+        return [
+          ...prev,
+          {
+            id: `msg-${Date.now()}-assistant`,
+            role: "assistant",
+            content: assistantText,
+            timestamp: new Date().toLocaleTimeString(),
+            stats
+          }
+        ];
+      });
 
       // Apply workspace changes
       applyAgentActionsToWorkspace(assistantText, "AI Agent");
@@ -2696,16 +2749,6 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
       if (parsed.filesFound.length > 0 || parsed.editsFound.length > 0 || parsed.appendsFound.length > 0) {
         setActiveTab("editor");
       }
-
-      // Append assistant message with execution metrics
-      const newAssistantMsg: Message = {
-        id: `msg-${Date.now()}-assistant`,
-        role: "assistant",
-        content: assistantText,
-        timestamp: new Date().toLocaleTimeString(),
-        stats
-      };
-      setMessages(prev => [...prev, newAssistantMsg]);
 
     } catch (err: any) {
       if (err?.name === "AbortError") {
@@ -3396,6 +3439,7 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
           inputPrompt={inputPrompt}
           setInputPrompt={setInputPrompt}
           handleSendPrompt={handleSendPrompt}
+          handleStopPrompt={handleStopPrompt}
           attachedFileForChat={attachedFileForChat}
           setAttachedFileForChat={setAttachedFileForChat}
           selectedAgentForChat={selectedAgentForChat}

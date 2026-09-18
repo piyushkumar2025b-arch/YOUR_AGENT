@@ -49,7 +49,8 @@ export const WorkspaceSidebarExplorer: React.FC<WorkspaceSidebarExplorerProps> =
 }) => {
   const isDark = theme !== "light";
 
-  const query = fileSearchQuery.trim().toLowerCase();
+  const deferredQuery = React.useDeferredValue(fileSearchQuery);
+  const query = deferredQuery.trim().toLowerCase();
   const filteredFiles = useMemo(() => {
     return query
       ? files.filter(f => f.path.toLowerCase().includes(query))

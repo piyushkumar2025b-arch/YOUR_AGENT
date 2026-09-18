@@ -10,6 +10,8 @@ import crypto from "crypto";
 import net from "net";
 import dns from "dns";
 import { runIsolatedExecution, runDiagnosticSandboxAudit } from "./src/services/sandboxRunner.js";
+import { userPersistence, UserRecord } from "./src/services/userAuthPersistence.js";
+import { getActiveFreeModels } from "./src/services/openRouterModelService.js";
 
 const app = express();
 app.disable("x-powered-by");
@@ -50,8 +52,11 @@ function verifyUserToken(token: string): { valid: boolean; userId: string | null
   if (parts.length !== 4 || parts[0] !== "token") return { valid: false, userId: null };
   const [, userId, timestampStr, providedSig] = parts;
   const timestamp = parseInt(timestampStr, 10);
-  if (isNaN(timestamp) || Date.now() - timestamp > 24 * 60 * 60 * 1000) {
-    return { valid: false, userId: null }; // Token expired
+  const now = Date.now();
+  const age = now - timestamp;
+  // BUG-08: Reject future timestamps (> 60s clock skew) and expired tokens (> 24 hours)
+  if (isNaN(timestamp) || age < -60000 || age > 24 * 60 * 60 * 1000) {
+    return { valid: false, userId: null }; // Token expired or invalid future timestamp
   }
   const expectedSig = crypto.createHmac("sha256", SESSION_SECRET!).update(`${userId}:${timestampStr}`).digest("hex").slice(0, 32);
   try {
@@ -63,8 +68,9 @@ function verifyUserToken(token: string): { valid: boolean; userId: string | null
   }
 }
 
-// BUG-V3-001 & BUG-V3-002: Real Cryptographic Session Authorization (Reject unverified X-Session-Id and raw sk-or-* strings)
+// BUG-01: Real Cryptographic Session Authorization + User OpenRouter Key Support
 function isAuthorizedForExecution(req: express.Request): boolean {
+  // 1. Check Authorization header for valid application session token
   const authHeader = req.headers.authorization;
   if (authHeader && typeof authHeader === "string") {
     const clean = authHeader.replace(/^Bearer\s+/i, "").trim();
@@ -72,17 +78,50 @@ function isAuthorizedForExecution(req: express.Request): boolean {
       const { valid } = verifyUserToken(clean);
       if (valid) return true;
     }
+    // If client supplied their own direct OpenRouter API key, authorize directly
+    if (/^sk-or-[a-zA-Z0-9_\-]{16,}$/.test(clean)) {
+      return true;
+    }
   }
 
-  // If x-session-id is supplied, it must also be a cryptographically verified token
+  // 2. Check X-Session-Id header for valid application session token
   const sessionId = req.headers["x-session-id"];
-  if (sessionId && typeof sessionId === "string" && sessionId.startsWith("token.")) {
-    const { valid } = verifyUserToken(sessionId.trim());
-    if (valid) return true;
+  if (sessionId && typeof sessionId === "string") {
+    const cleanSession = sessionId.replace(/^Bearer\s+/i, "").trim();
+    if (cleanSession.startsWith("token.")) {
+      const { valid } = verifyUserToken(cleanSession);
+      if (valid) return true;
+    }
+  }
+
+  // 3. Check X-OpenRouter-Key or X-Api-Key header
+  const openRouterKey = req.headers["x-openrouter-key"] || req.headers["x-api-key"];
+  if (typeof openRouterKey === "string") {
+    const cleanKey = openRouterKey.trim();
+    if (/^sk-or-[a-zA-Z0-9_\-]{16,}$/.test(cleanKey)) {
+      return true;
+    }
   }
 
   return false;
 }
+
+// Safely extract the provider OpenRouter API key without mixing with application session tokens
+function extractOpenRouterApiKey(req: express.Request): string {
+  const xKey = req.headers["x-openrouter-key"] || req.headers["x-api-key"];
+  if (typeof xKey === "string" && xKey.trim().startsWith("sk-or-")) {
+    return xKey.trim();
+  }
+  const auth = req.headers.authorization;
+  if (typeof auth === "string") {
+    const clean = auth.replace(/^Bearer\s+/i, "").trim();
+    if (clean.startsWith("sk-or-")) {
+      return clean;
+    }
+  }
+  return (process.env.OPENROUTER_API_KEY || "").trim();
+}
+
 
 // Restrict Socket.IO CORS to app origin, local dev, and container hosts
 const io = new SocketIOServer(httpServer, {
@@ -90,8 +129,14 @@ const io = new SocketIOServer(httpServer, {
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
       const appUrl = process.env.APP_URL || "";
+      let matchesAppUrl = false;
+      if (appUrl) {
+        try {
+          matchesAppUrl = new URL(appUrl).origin === new URL(origin).origin;
+        } catch {}
+      }
       if (
-        (appUrl && (origin === appUrl || origin.startsWith(appUrl))) ||
+        matchesAppUrl ||
         origin === "http://localhost:3000" ||
         origin === "http://127.0.0.1:3000" ||
         /^https?:\/\/[a-z0-9-]+\.(run\.app|localhost)(:\d+)?$/i.test(origin)
@@ -175,20 +220,30 @@ function cacheGet(key: string) {
   return entry.data;
 }
 
-function cacheMiddleware(ttlSeconds: number = 300) {
+function cacheMiddleware(ttlSeconds: number = 300, forcePrivate: boolean = false) {
   return (req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (req.method !== "GET") return next();
-    const cacheKey = req.originalUrl || req.url;
+    
+    // BUG-11: User-isolated cache keys to prevent cross-user data leakage
+    const rawAuth = req.headers.authorization || "";
+    const rawSession = (req.headers["x-session-id"] as string) || "";
+    const userTag = rawAuth ? crypto.createHash("sha256").update(rawAuth).digest("hex").slice(0, 16) :
+                    rawSession ? crypto.createHash("sha256").update(rawSession).digest("hex").slice(0, 16) : "";
+    const isPrivate = forcePrivate || Boolean(userTag);
+    const cacheKey = isPrivate ? `${req.originalUrl || req.url}:user_${userTag}` : (req.originalUrl || req.url);
+
     const cachedData = cacheGet(cacheKey);
 
     if (cachedData !== null) {
       systemTelemetry.cacheHits++;
       res.setHeader("X-Cache-Status", "HIT");
+      res.setHeader("Cache-Control", isPrivate ? "private, no-cache" : `public, max-age=${ttlSeconds}`);
       return res.json(cachedData);
     }
 
     systemTelemetry.cacheMisses++;
     res.setHeader("X-Cache-Status", "MISS");
+    res.setHeader("Cache-Control", isPrivate ? "private, no-cache" : `public, max-age=${ttlSeconds}`);
 
     const originalJson = res.json.bind(res);
     res.json = (body: any) => {
@@ -315,17 +370,17 @@ app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-XSS-Protection", "1; mode=block");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-  res.setHeader("Permissions-Policy", "camera=*, microphone=*, geolocation=*");
+  res.setHeader("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(self)");
   res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   next();
 });
 
-// Automatic Query & Body Input Sanitization Guard
+// Automatic Query & Body Input Sanitization Guard (Null-byte truncation prevention)
 app.use((req, res, next) => {
   const sanitize = (obj: any): any => {
     if (typeof obj === "string") {
       systemTelemetry.sanitizedInputs++;
-      return obj.replace(/\0/g, "").replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+      return obj.replace(/\0/g, "");
     }
     if (obj && typeof obj === "object") {
       for (const key of Object.keys(obj)) {
@@ -353,11 +408,26 @@ function cleanupExpiredRateLimits() {
   }
 }
 
-// BUG-V3-009: Bind rate limiting to verifiable connection identity to resist X-Forwarded-For spoofing
+// BUG-V3-009 / BUG-18: Bind rate limiting to verified user identity or socket address
 function getRateLimitIdentity(req: express.Request): string {
-  // Use real socket address as base client identity to prevent X-Forwarded-For rotation spoofing
+  // If user provides a verified HMAC session token in Authorization or X-Session-Id, rate-limit per user identity
+  const authHeader = req.headers.authorization;
+  if (authHeader && typeof authHeader === "string") {
+    const clean = authHeader.replace(/^Bearer\s+/i, "").trim();
+    if (clean.startsWith("token.")) {
+      const { valid, userId } = verifyUserToken(clean);
+      if (valid && userId) return `user:${userId}`;
+    }
+  }
+  const sessionId = req.headers["x-session-id"];
+  if (sessionId && typeof sessionId === "string" && sessionId.startsWith("token.")) {
+    const { valid, userId } = verifyUserToken(sessionId.trim());
+    if (valid && userId) return `user:${userId}`;
+  }
+
+  // Fallback to real socket address for unauthenticated clients
   const remoteIp = req.socket.remoteAddress || "127.0.0.1";
-  return remoteIp.replace(/[^a-fA-F0-9.:]/g, "").slice(0, 45) || "127.0.0.1";
+  return `ip:${remoteIp.replace(/[^a-fA-F0-9.:]/g, "").slice(0, 45) || "127.0.0.1"}`;
 }
 
 function createRateLimiter(maxRequests: number, windowMs: number, nameSpace: string = "default") {
@@ -404,8 +474,51 @@ const searchLimiter = createRateLimiter(40, 60 * 1000, "search");
 const speedtestLimiter = createRateLimiter(15, 60 * 1000, "speedtest");
 const githubLimiter = createRateLimiter(40, 60 * 1000, "github");
 
-// BUG-V3-005 & BUG-V3-006: State CSRF Protection Store & Canonical Origin Resolution
+// BUG-V3-005 & BUG-09: Cryptographically Signed OAuth CSRF State (Resilient across restarts)
 const oauthStateStore = new Map<string, { createdAt: number; redirectUri: string }>();
+
+function createSignedOAuthState(redirectUri: string): string {
+  const nonce = crypto.randomBytes(16).toString("hex");
+  const timestamp = Date.now().toString();
+  const uriHash = crypto.createHash("sha256").update(redirectUri).digest("hex").slice(0, 16);
+  const sig = crypto.createHmac("sha256", SESSION_SECRET!).update(`oauth:${nonce}:${timestamp}:${uriHash}`).digest("hex").slice(0, 32);
+  const stateToken = `oauth.${nonce}.${timestamp}.${uriHash}.${sig}`;
+  oauthStateStore.set(stateToken, { createdAt: Date.now(), redirectUri });
+  return stateToken;
+}
+
+function verifyAndConsumeOAuthState(stateStr: string): { valid: boolean; redirectUri?: string } {
+  if (!stateStr || typeof stateStr !== "string") return { valid: false };
+  
+  if (oauthStateStore.has(stateStr)) {
+    const item = oauthStateStore.get(stateStr)!;
+    oauthStateStore.delete(stateStr);
+    if (Date.now() - item.createdAt <= 10 * 60 * 1000) {
+      return { valid: true, redirectUri: item.redirectUri };
+    }
+    return { valid: false };
+  }
+
+  // Fallback to cryptographic signature verification if server restarted
+  if (stateStr.startsWith("oauth.")) {
+    const parts = stateStr.split(".");
+    if (parts.length === 5) {
+      const [, nonce, timestampStr, uriHash, providedSig] = parts;
+      const timestamp = parseInt(timestampStr, 10);
+      const age = Date.now() - timestamp;
+      if (!isNaN(timestamp) && age >= -60000 && age <= 10 * 60 * 1000) {
+        const expectedSig = crypto.createHmac("sha256", SESSION_SECRET!).update(`oauth:${nonce}:${timestampStr}:${uriHash}`).digest("hex").slice(0, 32);
+        try {
+          if (crypto.timingSafeEqual(Buffer.from(providedSig, "utf8"), Buffer.from(expectedSig, "utf8"))) {
+            return { valid: true };
+          }
+        } catch {}
+      }
+    }
+  }
+
+  return { valid: false };
+}
 
 function pruneOAuthStates() {
   const now = Date.now();
@@ -452,9 +565,8 @@ app.get("/api/auth/github/url", (req, res) => {
     }
   }
 
-  // BUG-V3-005: Generate and store secure random state parameter for CSRF mitigation
-  const state = crypto.randomBytes(24).toString("hex");
-  oauthStateStore.set(state, { createdAt: Date.now(), redirectUri });
+  // BUG-V3-005 & BUG-09: Generate cryptographically signed random state parameter for CSRF mitigation
+  const state = createSignedOAuthState(redirectUri);
 
   if (!clientId) {
     return res.json({
@@ -495,9 +607,10 @@ const handleAuthCallback = async (req: express.Request, res: express.Response) =
 
   pruneOAuthStates();
   const stateStr = typeof state === "string" ? state.trim() : "";
+  const { valid: isStateValid } = verifyAndConsumeOAuthState(stateStr);
 
-  // BUG-V3-005: Enforce strict state parameter matching to defeat OAuth CSRF replay attacks
-  if (!stateStr || !oauthStateStore.has(stateStr)) {
+  // BUG-V3-005 & BUG-09: Enforce strict cryptographic state parameter matching to defeat OAuth CSRF replay attacks
+  if (!stateStr || !isStateValid) {
     return res.status(403).send(`
       <!DOCTYPE html>
       <html>
@@ -512,9 +625,6 @@ const handleAuthCallback = async (req: express.Request, res: express.Response) =
       </html>
     `);
   }
-
-  // Consume state once
-  oauthStateStore.delete(stateStr);
 
   if (!code) {
     return res.send(`
@@ -581,11 +691,12 @@ const handleAuthCallback = async (req: express.Request, res: express.Response) =
       `);
     }
 
+    const appSessionToken = generateUserToken("usr_gh_" + userData.id);
     const payload = JSON.stringify({
       type: "OAUTH_AUTH_SUCCESS",
       provider: "github",
       user: userData,
-      accessToken: token
+      token: appSessionToken
     });
 
     res.send(`
@@ -722,16 +833,22 @@ app.all("/api/openrouter/verify-key", async (req: any, res: any) => {
   }
 });
 
-// OpenRouter list models proxy
+// OpenRouter list models proxy (BUG-06: Session authorization & clean key separation)
 app.get("/api/openrouter/models", async (req, res) => {
-  const incomingAuth = req.headers.authorization || (process.env.OPENROUTER_API_KEY ? `Bearer ${process.env.OPENROUTER_API_KEY}` : "");
+  if (!isAuthorizedForExecution(req)) {
+    return res.status(401).json({
+      error: "Authentication required: A valid session token is required to access models. Please provide an active session token in Authorization or X-Session-Id header."
+    });
+  }
+
+  const effectiveApiKey = extractOpenRouterApiKey(req);
   try {
     const headers: Record<string, string> = {
       "HTTP-Referer": "https://ai.studio/build",
       "X-Title": "OpenRouter Models List"
     };
-    if (incomingAuth) {
-      headers["Authorization"] = incomingAuth.startsWith("Bearer ") ? incomingAuth : `Bearer ${incomingAuth}`;
+    if (effectiveApiKey && effectiveApiKey.startsWith("sk-or-")) {
+      headers["Authorization"] = `Bearer ${effectiveApiKey}`;
     }
     const response = await fetch("https://openrouter.ai/api/v1/models", {
       method: "GET",
@@ -810,7 +927,12 @@ let totalSystemAiRequests = 0;
 let totalSystemCacheHits = 0;
 
 function computeTokenSaverKey(prefix: string, messages: any[], temperature: number, maxTokens: number): string {
-  const summary = (messages || []).map((m: any) => `${m.role}:${(typeof m.content === "string" ? m.content : JSON.stringify(m.content)).slice(0, 150).trim()}`).join("|");
+  // BUG-03: Hash full normalized message content without truncation to prevent cache key collisions
+  const summary = (messages || []).map((m: any) => {
+    const role = m.role || "user";
+    const text = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+    return `${role}:${text}`;
+  }).join("\x1f");
   const hashedSummary = crypto.createHash("sha256").update(summary).digest("hex");
   return `${prefix}:${(temperature ?? 0).toFixed(2)}:${maxTokens}:${hashedSummary}`;
 }
@@ -956,6 +1078,145 @@ async function callGeminiDirect(messages: any[], temperature: number = 0.4, maxT
   throw new Error("Gemini direct API candidates exhausted or rate limited.");
 }
 
+async function streamGeminiDirect(
+  messages: any[],
+  res: any,
+  req: any,
+  temperature: number = 0.4,
+  maxTokens: number = 4096
+): Promise<boolean> {
+  if (!process.env.GEMINI_API_KEY) return false;
+
+  const systemMessage = messages.find((m: any) => m.role === "system");
+  const chatMessages = messages.filter((m: any) => m.role !== "system");
+  const recentChatMessages = chatMessages.slice(-8);
+  const formattedContents: any[] = [];
+
+  for (let i = 0; i < recentChatMessages.length; i++) {
+    const msg = recentChatMessages[i];
+    const isLatestTurn = (i >= recentChatMessages.length - 2);
+    const role = msg.role === "assistant" || msg.role === "model" ? "model" : "user";
+    let textContent = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+    if (!textContent || !textContent.trim()) continue;
+    textContent = textContent.replace(/\n{3,}/g, "\n\n").replace(/[ \t]{4,}/g, "  ").trim();
+    if (!isLatestTurn && textContent.length > 1200) {
+      textContent = textContent.slice(0, 700) + "\n\n[...context condensed to preserve token quota...]\n\n" + textContent.slice(-400);
+    } else if (textContent.length > 12000) {
+      textContent = textContent.slice(0, 12000) + "\n\n[...context truncated to preserve token efficiency...]";
+    }
+
+    if (formattedContents.length > 0 && formattedContents[formattedContents.length - 1].role === role) {
+      formattedContents[formattedContents.length - 1].parts[0].text += `\n\n${textContent}`;
+    } else {
+      formattedContents.push({
+        role,
+        parts: [{ text: textContent }]
+      });
+    }
+  }
+
+  if (formattedContents.length === 0) {
+    formattedContents.push({
+      role: "user",
+      parts: [{ text: "Hello" }]
+    });
+  }
+
+  const requestedMaxTokens = maxTokens && maxTokens > 0 ? Math.min(maxTokens, 4096) : 2560;
+  const requestBody: any = {
+    contents: formattedContents,
+    generationConfig: {
+      temperature: temperature ?? 0.3,
+      maxOutputTokens: requestedMaxTokens,
+      topP: 0.95
+    },
+  };
+
+  const highQualityDirectives = "CRITICAL QUALITY DIRECTIVES:\n- High-Density & Precision: Provide clean, production-grade solutions without unnecessary conversational filler.\n- Complete Implementation: Never truncate or leave code placeholders like '// ... rest of code'. Include all imports and types.\n- Token Efficiency: Output concise, high-value code.";
+
+  if (systemMessage) {
+    const sysText = typeof systemMessage.content === "string" ? systemMessage.content : JSON.stringify(systemMessage.content);
+    if (sysText) {
+      requestBody.systemInstruction = {
+        parts: [{ text: `${sysText.replace(/\n{3,}/g, "\n\n")}\n\n${highQualityDirectives}` }]
+      };
+    }
+  } else {
+    requestBody.systemInstruction = {
+      parts: [{ text: highQualityDirectives }]
+    };
+  }
+
+  const abortCtrl = new AbortController();
+  const onClose = () => {
+    try { abortCtrl.abort(); } catch {}
+  };
+  req.on("close", onClose);
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+        signal: abortCtrl.signal
+      }
+    );
+
+    if (!response.ok || !response.body) {
+      req.off("close", onClose);
+      return false;
+    }
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let sseBuffer = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        sseBuffer += decoder.decode(value, { stream: true });
+        const lines = sseBuffer.split("\n");
+        sseBuffer = lines.pop() || "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith("data: ")) continue;
+          const jsonStr = trimmed.slice(6).trim();
+          if (jsonStr === "[DONE]") continue;
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const partText = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (partText) {
+              const chunk = JSON.stringify({
+                id: `chatcmpl-${Date.now()}`,
+                object: "chat.completion.chunk",
+                choices: [{ index: 0, delta: { content: partText } }]
+              });
+              res.write(`data: ${chunk}\n\n`);
+            }
+          } catch {}
+        }
+      }
+      res.write("data: [DONE]\n\n");
+    } finally {
+      req.off("close", onClose);
+      try { await reader.cancel(); } catch {}
+      res.end();
+    }
+    return true;
+  } catch (err: any) {
+    req.off("close", onClose);
+    return false;
+  }
+}
+
 // Model Health Registry for tracking cooldowns and dynamic availability (BUG-009)
 interface ModelHealth {
   failures: number;
@@ -978,17 +1239,8 @@ async function callOpenRouterFreeModel(apiKey: string | undefined, messages: any
     };
   }
 
-  // Active verified free models on OpenRouter
-  const baseFreeModels = [
-    "liquid/lfm-2.5-2.6b:free",
-    "nex-agi/nex-n2.5-mini:free",
-    "nex-agi/nex-n2.5-pro:free",
-    "poolside/laguna-s-2.1:free",
-    "cohere/north-mini-code:free",
-    "thinkingmachines/inkling:free",
-    "nvidia/nemotron-3.5-lightning:free",
-    "poolside/laguna-xs-2.1:free"
-  ];
+  // BUG-20 Fix: Fetch live non-deprecated free models dynamically with cache
+  const baseFreeModels = await getActiveFreeModels(authHeader);
 
   // Preserve context: system message + up to last 10 user/assistant messages
   const sysMsg = (messages || []).find((m: any) => m.role === "system");
@@ -1092,6 +1344,13 @@ async function fetchWebGroundingResults(query: string): Promise<string> {
 
 // OpenRouter chat completion proxy (with rate limiting and per-session concurrency queue)
 app.post("/api/openrouter/chat", aiLimiter, async (req, res: any) => {
+  // BUG-005 Fix: Require session authorization so arbitrary callers cannot consume server AI quota
+  if (!isAuthorizedForExecution(req)) {
+    return res.status(401).json({
+      error: "Authentication required: A valid session token is required to access AI endpoints. Please provide an active session token in Authorization or X-Session-Id header."
+    });
+  }
+
   // BUG-005 Fix: Reject API keys passed in request body
   if (req.body && (req.body.apiKey || req.body.key)) {
     return res.status(400).json({
@@ -1103,15 +1362,12 @@ app.post("/api/openrouter/chat", aiLimiter, async (req, res: any) => {
   
   try {
     await enqueue(`ai:${sessionId}`, async () => {
-      // BUG-005 Fix: Prioritize server-side environment secret, fallback to standard Authorization header only. Never read from JSON body.
-      const rawAuth = (process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.trim().length > 5)
-        ? process.env.OPENROUTER_API_KEY.trim()
-        : (req.headers.authorization ? req.headers.authorization.replace(/^Bearer\s+/i, "").trim() : "");
-      const cleanKey = typeof rawAuth === "string" ? rawAuth.trim() : "";
-      const hasApiKey = Boolean(cleanKey && cleanKey !== "undefined" && cleanKey !== "null" && cleanKey.length > 5);
+      // BUG-01 Fix: Safely extract provider OpenRouter API key without mixing with application session tokens
+      const cleanKey = extractOpenRouterApiKey(req);
+      const hasApiKey = Boolean(cleanKey && cleanKey.startsWith("sk-or-") && cleanKey.length > 10);
       const formattedAuthHeader = hasApiKey ? `Bearer ${cleanKey}` : "";
 
-  const { model, messages, temperature, max_tokens, web_search, plugins } = req.body;
+  const { model, messages, temperature, max_tokens, web_search, plugins, stream } = req.body;
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: "Missing or invalid 'messages' array in request body." });
   }
@@ -1141,7 +1397,7 @@ app.post("/api/openrouter/chat", aiLimiter, async (req, res: any) => {
   const chatCacheKey = computeTokenSaverKey(selectedModel, finalMessages, temperature ?? 0.7, max_tokens || 4096) + `:${sessionId}`;
   const cacheTtl = wantsWebSearch ? 60000 : 600000;
   const cachedChat = tokenSaverCache.get(chatCacheKey);
-  if (cachedChat && (Date.now() - cachedChat.timestamp) < cacheTtl) {
+  if (!stream && cachedChat && (Date.now() - cachedChat.timestamp) < cacheTtl) {
     totalSystemCacheHits++;
     totalSystemTokensSaved += cachedChat.tokensSaved;
     return res.json({
@@ -1165,11 +1421,62 @@ app.post("/api/openrouter/chat", aiLimiter, async (req, res: any) => {
         messages: finalMessages,
         temperature: temperature ?? 0.7,
       };
+      // BUG-20: Guard runaway token allocations with realistic upper bounds
       if (max_tokens && max_tokens > 0) {
-        openRouterPayload.max_tokens = Math.min(max_tokens, 128000);
+        openRouterPayload.max_tokens = Math.min(max_tokens, 16384);
+      } else {
+        openRouterPayload.max_tokens = 4096;
       }
       if (wantsWebSearch) {
         openRouterPayload.plugins = [{ id: "web" }];
+      }
+
+      // Stream SSE support if client requested
+      if (stream) {
+        openRouterPayload.stream = true;
+        const abortCtrl = new AbortController();
+        const onClose = () => {
+          try { abortCtrl.abort(); } catch {}
+        };
+        req.on("close", onClose);
+
+        try {
+          const streamResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": formattedAuthHeader,
+              "HTTP-Referer": "https://ai.studio/build",
+              "X-Title": "OpenRouter Code Agent",
+            },
+            body: JSON.stringify(openRouterPayload),
+            signal: abortCtrl.signal
+          });
+
+          if (streamResponse.ok && streamResponse.body) {
+            res.setHeader("Content-Type", "text/event-stream");
+            res.setHeader("Cache-Control", "no-cache");
+            res.setHeader("Connection", "keep-alive");
+            const reader = streamResponse.body.getReader();
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                res.write(value);
+              }
+            } finally {
+              req.off("close", onClose);
+              try { await reader.cancel(); } catch {}
+              res.end();
+            }
+            return;
+          }
+        } catch (streamErr: any) {
+          req.off("close", onClose);
+          if (abortCtrl.signal.aborted) {
+            return;
+          }
+        }
       }
 
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -1204,6 +1511,16 @@ app.post("/api/openrouter/chat", aiLimiter, async (req, res: any) => {
 
     // Step 1b: If requested model fails, prioritize Gemini Direct API fallback first (zero delay, high reliability)
     if (process.env.GEMINI_API_KEY) {
+      if (stream) {
+        try {
+          console.log("[Gemini API] Streaming Direct Gemini API fallback with gemini-2.5-flash...");
+          const streamed = await streamGeminiDirect(finalMessages, res, req, temperature, max_tokens);
+          if (streamed) return;
+        } catch (streamErr: any) {
+          console.log("[Gemini API] Direct streaming fallback failed, trying non-streaming:", streamErr.message);
+        }
+      }
+
       try {
         console.log("[Gemini API] Invoking Direct Gemini API fallback with gemini-2.5-flash...");
         const { replyText, modelUsed } = await callGeminiDirect(finalMessages, temperature, max_tokens);
@@ -1594,25 +1911,27 @@ ${code}
     try {
       const parsed = JSON.parse(cleanJson);
       return res.json({
-        stdout: parsed.stdout || "Program executed with no standard output.",
-        stderr: parsed.stderr || "",
+        stdout: parsed.stdout || "No standard output produced.",
+        stderr: (parsed.stderr ? parsed.stderr + "\n" : "") + "[Notice: Simulated / AI Analysis — Code was analyzed by an AI model, not executed on a native compiler.]",
         exitCode: typeof parsed.exitCode === "number" ? parsed.exitCode : 0,
         executionTimeMs: parsed.executionTimeMs || (Date.now() - startTime),
         memoryUsageMb: parsed.memoryUsageMb || "16.8 MB",
-        runnerType: "openrouter_ai",
+        runnerType: "simulated_ai_analysis",
+        isSimulated: true,
         modelUsed: chosenModel,
-        explanation: parsed.explanation || "Executed via OpenRouter AI model compiler runtime."
+        explanation: "[SIMULATED / AI ANALYSIS] " + (parsed.explanation || "Output was synthesized by AI analysis model.")
       });
     } catch (pErr) {
       return res.json({
         stdout: openRouterContent,
-        stderr: "",
+        stderr: "[Notice: Simulated / AI Analysis — Code was analyzed by an AI model, not executed on a native compiler.]",
         exitCode: 0,
         executionTimeMs: Date.now() - startTime,
         memoryUsageMb: "16.0 MB",
-        runnerType: "openrouter_ai",
+        runnerType: "simulated_ai_analysis",
+        isSimulated: true,
         modelUsed: chosenModel,
-        explanation: "Executed via OpenRouter AI model."
+        explanation: "[SIMULATED / AI ANALYSIS] Output was synthesized by AI model."
       });
     }
   } catch (aiExecErr: any) {
@@ -1630,7 +1949,15 @@ ${code}
 
 // AI Image Generation Endpoint supporting OpenRouter image models and free Pollinations fallback
 app.post("/api/generate-image", aiLimiter, async (req, res: any) => {
-  const apiKey = req.headers.authorization;
+  // BUG-02 Fix: Require valid application session or provider key authorization
+  if (!isAuthorizedForExecution(req)) {
+    return res.status(401).json({
+      error: "Authentication required: A valid session token is required to generate images. Please provide an active session token in Authorization or X-Session-Id header."
+    });
+  }
+
+  // BUG-07 Fix: Decouple provider OpenRouter API key from session token
+  const cleanKey = extractOpenRouterApiKey(req);
   const { prompt, model, width = 1024, height = 1024, style = "photorealistic", aspect_ratio = "1:1" } = req.body;
 
   if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
@@ -1639,7 +1966,7 @@ app.post("/api/generate-image", aiLimiter, async (req, res: any) => {
 
   const cleanPrompt = prompt.trim().slice(0, 2000);
   const selectedModel = typeof model === "string" ? model.slice(0, 100) : "black-forest-labs/flux-1-schnell";
-  const hasApiKey = apiKey && apiKey !== "Bearer " && apiKey !== "Bearer undefined" && apiKey !== "Bearer null" && apiKey !== "Bearer";
+  const hasApiKey = Boolean(cleanKey && cleanKey.startsWith("sk-or-") && cleanKey.length > 10);
 
   let dimensions = { w: width, h: height };
   if (aspect_ratio === "16:9") dimensions = { w: 1280, h: 720 };
@@ -1654,7 +1981,7 @@ app.post("/api/generate-image", aiLimiter, async (req, res: any) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": apiKey,
+          "Authorization": `Bearer ${cleanKey}`,
           "HTTP-Referer": process.env.APP_URL || "https://ai.studio/build",
           "X-Title": "OpenRouter Image Generator",
         },
@@ -2417,7 +2744,48 @@ app.get("/api/who/outbreaks", cacheMiddleware(1800), async (req, res) => {
   res.json(data);
 });
 
-// 12. World Bank Country Economic Profile (1-day cache / 86400s)
+// 12a. World Bank Indicator Data (BUG-16: 1-day cache / 86400s)
+app.get(["/api/worldbank/indicator/:indicator", "/api/worldbank/indicator/:indicator/:country"], cacheMiddleware(86400), async (req, res) => {
+  const indicator = (req.params.indicator || "NY.GDP.MKTP.CD").trim();
+  const country = (req.params.country || "WLD").toUpperCase().trim();
+
+  const data = await withCircuitBreaker<any>(
+    `worldbank_indicator_${indicator}_${country}`,
+    async () => {
+      const url = `https://api.worldbank.org/v2/country/${encodeURIComponent(country)}/indicator/${encodeURIComponent(indicator)}?format=json&date=2015:2024&per_page=10`;
+      const resp = await fetchWithRetry(url, {}, 2, 500);
+      const json: any = await resp.json();
+      if (Array.isArray(json) && json[1]) {
+        return {
+          indicator: json[0]?.indicator || indicator,
+          country,
+          source: "World Bank Data API",
+          data: json[1].map((entry: any) => ({
+            year: entry.date,
+            value: entry.value,
+            country: entry.country?.value
+          }))
+        };
+      }
+      return {
+        indicator,
+        country,
+        source: "World Bank Data API",
+        data: []
+      };
+    },
+    {
+      indicator,
+      country,
+      source: "World Bank Data API (Fallback)",
+      data: []
+    }
+  );
+
+  res.json(data);
+});
+
+// 12b. World Bank Country Economic Profile (1-day cache / 86400s)
 app.get(["/api/worldbank/:country", "/api/worldbank/country/:country"], cacheMiddleware(86400), async (req, res) => {
   const country = (req.params.country || "US").toUpperCase();
 
@@ -2555,6 +2923,13 @@ app.get("/api/system/token-savings", (req, res) => {
 
 // Gemini Multimodal Vision API (Wireframe/Screenshot to React + Tailwind Code with Zero Token Waste Caching)
 app.post("/api/gemini/vision", aiLimiter, async (req, res) => {
+  // BUG-006 Fix: Require session authorization
+  if (!isAuthorizedForExecution(req)) {
+    return res.status(401).json({
+      error: "Authentication required: A valid session token is required to access vision analysis."
+    });
+  }
+
   try {
     const rawImage = req.body.imageBase64 || req.body.image || req.body.imageData;
     const ALLOWED_IMAGE_MIME_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"];
@@ -2572,8 +2947,8 @@ app.post("/api/gemini/vision", aiLimiter, async (req, res) => {
       return res.status(400).json({ error: "Missing or invalid 'imageBase64' parameter." });
     }
 
-    if (rawImage.length > 20 * 1024 * 1024) {
-      return res.status(413).json({ error: "Image data exceeds 20MB maximum limit." });
+    if (rawImage.length > 7 * 1024 * 1024) {
+      return res.status(413).json({ error: "Image data exceeds 5MB limit. Please compress or crop the image." });
     }
 
     if (!process.env.GEMINI_API_KEY) {
@@ -3858,8 +4233,8 @@ function isPrivateOrRestrictedHost(hostname: string): boolean {
   return false;
 }
 
-// BUG-003 Fix: Asynchronously resolve and verify all DNS IPs to prevent DNS rebinding attacks
-async function isSafeDestination(hostname: string): Promise<{ safe: boolean; reason?: string }> {
+// BUG-003 & BUG-09 Fix: Asynchronously resolve and verify all DNS IPs to prevent DNS rebinding attacks
+async function isSafeDestination(hostname: string): Promise<{ safe: boolean; reason?: string; resolvedIps?: string[] }> {
   if (!hostname || typeof hostname !== "string") {
     return { safe: false, reason: "Missing or invalid hostname." };
   }
@@ -3871,7 +4246,7 @@ async function isSafeDestination(hostname: string): Promise<{ safe: boolean; rea
 
   // If already a raw IP address and passed above, it is safe
   if (net.isIP(cleanHost)) {
-    return { safe: true };
+    return { safe: true, resolvedIps: [cleanHost] };
   }
 
   try {
@@ -3879,18 +4254,20 @@ async function isSafeDestination(hostname: string): Promise<{ safe: boolean; rea
     if (!records || records.length === 0) {
       return { safe: false, reason: `Could not resolve hostname '${cleanHost}'.` };
     }
+    const resolvedIps: string[] = [];
     for (const record of records) {
       if (isPrivateOrRestrictedHost(record.address)) {
         return { safe: false, reason: `Hostname '${cleanHost}' resolves to restricted IP ${record.address}.` };
       }
+      resolvedIps.push(record.address);
     }
-    return { safe: true };
+    return { safe: true, resolvedIps };
   } catch (err: any) {
     return { safe: false, reason: `DNS lookup failed for '${cleanHost}': ${err.message}` };
   }
 }
 
-// General Purpose External HTTP Proxy with Comprehensive SSRF Protection (BUG-003)
+// General Purpose External HTTP Proxy with Comprehensive SSRF Protection (BUG-003, BUG-09, BUG-10)
 app.all("/api/proxy", async (req, res: any) => {
   // Require authentication to prevent unauthenticated public SSRF proxying
   if (!isAuthorizedForExecution(req)) {
@@ -3930,6 +4307,7 @@ app.all("/api/proxy", async (req, res: any) => {
     let upstream: Response;
     let redirects = 0;
     const MAX_REDIRECTS = 3;
+    const MAX_PROXY_RESPONSE_SIZE = 5 * 1024 * 1024; // BUG-10: 5MB limit
 
     while (true) {
       const parsed = new URL(currentUrl);
@@ -3958,14 +4336,45 @@ app.all("/api/proxy", async (req, res: any) => {
       break;
     }
 
-    const contentType = upstream.headers.get("content-type") || "";
+    // BUG-10: Check Content-Length header before reading body
+    const contentLength = upstream.headers.get("content-length");
+    if (contentLength && parseInt(contentLength, 10) > MAX_PROXY_RESPONSE_SIZE) {
+      return res.status(413).json({ error: "Upstream response exceeds 5MB limit." });
+    }
+
+    // Stream and enforce byte limit
+    let totalBytes = 0;
+    const chunks: Buffer[] = [];
+    if (upstream.body) {
+      const reader = upstream.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          totalBytes += value.length;
+          if (totalBytes > MAX_PROXY_RESPONSE_SIZE) {
+            try { reader.cancel(); } catch {}
+            return res.status(413).json({ error: "Upstream response body exceeded 5MB size limit." });
+          }
+          chunks.push(Buffer.from(value));
+        }
+      }
+    }
+
+    const fullBuffer = Buffer.concat(chunks);
+    const contentType = upstream.headers.get("content-type") || "text/plain";
     res.status(upstream.status);
+    res.setHeader("Content-Type", contentType);
+
     if (contentType.includes("application/json")) {
-      const data = await upstream.json();
-      return res.json(data);
+      try {
+        const json = JSON.parse(fullBuffer.toString("utf8"));
+        return res.json(json);
+      } catch {
+        return res.send(fullBuffer.toString("utf8"));
+      }
     } else {
-      const text = await upstream.text();
-      return res.send(text);
+      return res.send(fullBuffer);
     }
   } catch (err: any) {
     return res.status(500).json({ error: "Proxy request failed: " + err.message });
@@ -4380,44 +4789,13 @@ app.get("/api/crypto/market-prices", cacheMiddleware(60), async (req, res) => {
   res.json(data);
 });
 
-// Real User Authentication Store (Persistent .data folder + Disk Sync)
-const USERS_FILE = process.env.USERS_DB_PATH || path.join(process.cwd(), ".data", "app_auth_users.json");
-interface UserRecord {
-  id: string;
-  email: string;
-  name: string;
-  passwordHash: string;
-  passwordSalt?: string;
-  createdAt: string;
-}
-
-let userDatabase: Record<string, UserRecord> = Object.create(null);
-
-try {
-  fs.mkdirSync(path.dirname(USERS_FILE), { recursive: true });
-  if (fs.existsSync(USERS_FILE)) {
-    const raw = JSON.parse(fs.readFileSync(USERS_FILE, "utf8"));
-    userDatabase = Object.assign(Object.create(null), raw);
-  }
-} catch {
-  userDatabase = Object.create(null);
-}
-
+// Real User Authentication Store (Persistent Multi-Tier Store with Disk and Backup Sync)
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 function isValidEmail(email: any): boolean {
   if (typeof email !== "string") return false;
   const trimmed = email.trim();
   return trimmed.length >= 5 && trimmed.length <= 128 && EMAIL_REGEX.test(trimmed);
 }
-
-const saveUsersToDisk = () => {
-  try {
-    fs.mkdirSync(path.dirname(USERS_FILE), { recursive: true });
-    fs.writeFileSync(USERS_FILE, JSON.stringify(userDatabase, null, 2), { encoding: "utf8", mode: 0o600 });
-  } catch (e) {
-    console.error("Failed to save user database to disk", e);
-  }
-};
 
 function hashPasswordV2(password: string, salt: string, iterations: number = 100000): string {
   return crypto.pbkdf2Sync(password, salt, iterations, 64, "sha512").toString("hex");
@@ -4450,7 +4828,7 @@ app.post("/api/auth/signup", authLimiter, (req, res: any) => {
     return res.status(400).json({ error: "Invalid email identifier." });
   }
 
-  if (userDatabase[normalizedEmail]) {
+  if (userPersistence.get(normalizedEmail)) {
     return res.status(400).json({ error: "An account with this email address already exists. Please sign in." });
   }
 
@@ -4465,8 +4843,7 @@ app.post("/api/auth/signup", authLimiter, (req, res: any) => {
     createdAt: new Date().toISOString()
   };
 
-  userDatabase[normalizedEmail] = user;
-  saveUsersToDisk();
+  userPersistence.save(user);
 
   const token = generateUserToken(userId);
   return res.json({
@@ -4488,7 +4865,7 @@ app.post("/api/auth/login", authLimiter, (req, res: any) => {
     return res.status(400).json({ error: "Invalid email identifier." });
   }
 
-  const existingUser = userDatabase[normalizedEmail];
+  const existingUser = userPersistence.get(normalizedEmail);
   if (!existingUser) {
     return res.status(401).json({ error: "Account not found. Please sign up first." });
   }
@@ -4516,7 +4893,7 @@ app.post("/api/auth/login", authLimiter, (req, res: any) => {
         const newSalt = crypto.randomBytes(16).toString("hex");
         existingUser.passwordSalt = newSalt;
         existingUser.passwordHash = hashPasswordV2(password, newSalt, 100000);
-        saveUsersToDisk();
+        userPersistence.save(existingUser);
       }
     } catch {
       isMatch = false;
@@ -4548,7 +4925,14 @@ app.get("/api/auth/me", (req, res: any) => {
     return res.status(401).json({ authenticated: false, message: "Invalid or expired session token." });
   }
 
-  const foundUser = Object.values(userDatabase).find(u => u.id === userId);
+  if (userId.startsWith("usr_guest_")) {
+    return res.json({
+      authenticated: true,
+      user: { id: userId, email: "guest@dev.local", name: "Guest Developer" }
+    });
+  }
+
+  const foundUser = userPersistence.getById(userId);
   if (foundUser) {
     return res.json({
       authenticated: true,
@@ -4786,26 +5170,40 @@ app.get("/api/media/download", async (req: express.Request, res: express.Respons
 const SHARED_FILES_DIR = path.join(os.tmpdir(), "shared_file_hub");
 try { fs.mkdirSync(SHARED_FILES_DIR, { recursive: true }); } catch {}
 
-// Background hourly cleanup for shared files older than 24h
-setInterval(() => {
+const MAX_SHARE_FILE_SIZE = 10 * 1024 * 1024; // 10MB Max (BUG-17)
+const MAX_TOTAL_SHARED_STORAGE = 50 * 1024 * 1024; // 50MB Aggregate Storage Quota (BUG-17)
+
+// BUG-12: Maintain running in-memory storage usage counter to eliminate synchronous full-directory stat loops on every upload
+let currentSharedStorageBytes = 0;
+function recalculateSharedStorage() {
+  let usage = 0;
   try {
     const files = fs.readdirSync(SHARED_FILES_DIR);
     const now = Date.now();
-    files.forEach(f => {
-      const fullPath = path.join(SHARED_FILES_DIR, f);
-      const stats = fs.statSync(fullPath);
-      if (now - stats.mtimeMs > 24 * 60 * 60 * 1000) {
-        fs.unlinkSync(fullPath);
-      }
-    });
+    for (const f of files) {
+      try {
+        const fullPath = path.join(SHARED_FILES_DIR, f);
+        const stats = fs.statSync(fullPath);
+        // BUG-13: Evict files older than 2 hours
+        if (now - stats.mtimeMs > 2 * 60 * 60 * 1000) {
+          fs.unlinkSync(fullPath);
+        } else {
+          usage += stats.size;
+        }
+      } catch {}
+    }
   } catch {}
-}, 60 * 60 * 1000);
+  currentSharedStorageBytes = usage;
+}
+recalculateSharedStorage();
 
-const MAX_SHARE_FILE_SIZE = 25 * 1024 * 1024; // 25MB Max
-const MAX_TOTAL_SHARED_STORAGE = 250 * 1024 * 1024; // 250MB Aggregate Storage Quota
+// Background periodic cleanup for shared files older than 2h (BUG-13)
+setInterval(() => {
+  recalculateSharedStorage();
+}, 10 * 60 * 1000);
 
 // BUG-V3-011: Require authentication, validate quotas, and generate signed download URLs
-app.post("/api/share/upload", uploadLimiter, (req, res: any) => {
+app.post("/api/share/upload", uploadLimiter, async (req, res: any) => {
   if (!isAuthorizedForExecution(req)) {
     return res.status(401).json({ error: "Unauthorized: Valid authentication token is required to upload shared files." });
   }
@@ -4833,28 +5231,19 @@ app.post("/api/share/upload", uploadLimiter, (req, res: any) => {
     }
 
     if (buffer.length > MAX_SHARE_FILE_SIZE) {
-      return res.status(413).json({ error: "File exceeds 25MB maximum limit." });
+      return res.status(413).json({ error: "File exceeds 10MB maximum limit." });
     }
 
-    // Enforce aggregate storage quota
-    let currentStorageUsage = 0;
-    try {
-      const existing = fs.readdirSync(SHARED_FILES_DIR);
-      for (const f of existing) {
-        try {
-          currentStorageUsage += fs.statSync(path.join(SHARED_FILES_DIR, f)).size;
-        } catch {}
-      }
-    } catch {}
-
-    if (currentStorageUsage + buffer.length > MAX_TOTAL_SHARED_STORAGE) {
+    // BUG-12: Enforce aggregate storage quota using in-memory counter
+    if (currentSharedStorageBytes + buffer.length > MAX_TOTAL_SHARED_STORAGE) {
       return res.status(507).json({ error: "Storage quota exceeded on server. Please try again later." });
     }
 
-    fs.writeFileSync(filePath, buffer);
+    await fs.promises.writeFile(filePath, buffer);
+    currentSharedStorageBytes += buffer.length;
 
-    // BUG-V3-012: Issue signed, expiring download link
-    const exp = Date.now() + 24 * 60 * 60 * 1000; // 24 hours validity
+    // BUG-V3-012: Issue signed, expiring download link (2 hours validity)
+    const exp = Date.now() + 2 * 60 * 60 * 1000;
     const sig = crypto.createHmac("sha256", SESSION_SECRET!).update(`${fileId}:${exp}`).digest("hex");
     const origin = getCanonicalPublicOrigin(req);
     const downloadUrl = `${origin}/api/share/download/${fileId}?exp=${exp}&sig=${sig}`;
@@ -4865,7 +5254,7 @@ app.post("/api/share/upload", uploadLimiter, (req, res: any) => {
       fileName: safeFileName,
       downloadUrl,
       expiresAt: new Date(exp).toISOString(),
-      size: fs.statSync(filePath).size
+      size: buffer.length
     });
   } catch (err: any) {
     return res.status(500).json({ error: `Failed to store file: ${err.message}` });
@@ -5228,15 +5617,39 @@ app.get("/api/system/security-audit", async (req, res) => {
     defenseMechanism: "Strict explicit whitelist environment construction"
   });
 
-  // 5. Test Rate Limiting Circuit Status
+  // 5. Test Rate Limiting Circuit Status (BUG-14: Active burst probe verification)
   const rateLimitStart = Date.now();
-  const activeLimitersCount = rateLimitMap.size;
+  const testWindowMs = 2000;
+  const testLimit = 4;
+  const testBurstLimiter = createRateLimiter(testLimit, testWindowMs, "audit_probe_test");
+  let allowedCount = 0;
+  let blockedCount = 0;
+  const testProbeReq = {
+    headers: {},
+    socket: { remoteAddress: "192.0.2.200" }
+  } as any;
+
+  for (let i = 0; i < 6; i++) {
+    let passed = false;
+    let blocked = false;
+    const dummyRes = {
+      status: (code: number) => ({
+        json: () => { blocked = true; }
+      }),
+      setHeader: () => {}
+    } as any;
+    testBurstLimiter(testProbeReq, dummyRes, () => { passed = true; });
+    if (passed) allowedCount++;
+    if (blocked) blockedCount++;
+  }
+  const rateLimitAuditPassed = allowedCount === testLimit && blockedCount === (6 - testLimit);
+
   checks.push({
     id: "check_ratelimit_circuits",
     category: "DOS_RATELIMIT",
     name: "Sliding-Window IP Rate Limiter Network",
-    status: "PASSED",
-    details: `All API endpoints are protected by dedicated rate limiters (auth, exec, ai, search, speedtest, github, upload, cache-clear). Active limiter instances: ${activeLimitersCount}.`,
+    status: rateLimitAuditPassed ? "PASSED" : "FAILED",
+    details: `All API endpoints are protected by dedicated rate limiters. Active burst probe verified: ${allowedCount} allowed, ${blockedCount} blocked under burst limit.`,
     latencyMs: Date.now() - rateLimitStart,
     vectorTested: "High-frequency API burst & credential stuffing simulation",
     defenseMechanism: "Sliding-window in-memory rate limiting with LRU eviction and Retry-After HTTP headers"
@@ -5270,11 +5683,20 @@ app.get("/api/system/security-audit", async (req, res) => {
   const totalPassed = checks.filter(c => c.status === "PASSED").length;
   const securityScore = Math.round((totalPassed / checks.length) * 100);
 
+  // BUG-13 Fix: Calculate security grade dynamically from score
+  const securityGrade = securityScore === 100
+    ? "A+ Enterprise Defense"
+    : securityScore >= 80
+    ? "B Standard Hardened"
+    : securityScore >= 60
+    ? "C Partial Isolation"
+    : "F Action Required";
+
   res.json({
     ok: true,
     overallStatus: securityScore === 100 ? "FULLY_HARDENED" : "ACTION_REQUIRED",
     securityScore,
-    securityGrade: "A+ Enterprise Defense",
+    securityGrade,
     checksPassed: totalPassed,
     totalChecks: checks.length,
     totalAuditLatencyMs: Date.now() - auditStart,
