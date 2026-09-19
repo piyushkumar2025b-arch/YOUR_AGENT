@@ -144,13 +144,20 @@ export const UniversitiesAgent: React.FC<UniversitiesAgentProps> = ({
   };
 
   const toggleCompare = (uni: University) => {
+    if (!compareList.some((u) => u.name === uni.name) && compareList.length >= 4) {
+      try {
+        if (typeof window !== "undefined" && typeof window.alert === "function") {
+          window.alert("You can compare up to 4 universities simultaneously.");
+        }
+      } catch {}
+      return;
+    }
     setCompareList((prev) => {
       const exists = prev.some((u) => u.name === uni.name);
       if (exists) {
         return prev.filter((u) => u.name !== uni.name);
       }
       if (prev.length >= 4) {
-        alert("You can compare up to 4 universities simultaneously.");
         return prev;
       }
       return [...prev, uni];

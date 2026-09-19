@@ -155,7 +155,9 @@ export const LiveJokesAgent: React.FC<LiveJokesAgentProps> = ({
 
   const handleSpeech = (text: string) => {
     if (!("speechSynthesis" in window)) {
-      alert("Speech synthesis is not supported in this browser.");
+      try {
+        (window as any)?.alert?.("Speech synthesis is not supported in this browser.");
+      } catch {}
       return;
     }
     if (isSpeaking) {
@@ -187,7 +189,11 @@ export const LiveJokesAgent: React.FC<LiveJokesAgentProps> = ({
   // AI Joke & Roaster Service Call
   const handleGenerateAiHumor = async () => {
     if (!aiPrompt.trim()) {
-      alert("Please enter a code snippet, tech topic, or joke prompt!");
+      try {
+        if (typeof window !== "undefined" && typeof window.alert === "function") {
+          window.alert("Please enter a code snippet, tech topic, or joke prompt!");
+        }
+      } catch {}
       return;
     }
 

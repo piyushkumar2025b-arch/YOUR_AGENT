@@ -211,7 +211,7 @@ export default function App() {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        alert("Selected image is too large. Please upload an image under 5MB.");
+        safeAlert("Selected image is too large. Please upload an image under 5MB.", "error");
         return;
       }
       const reader = new FileReader();
@@ -372,6 +372,30 @@ export default function App() {
       }
     ];
   });
+
+  const addAgentAction = (type: "create" | "edit" | "delete" | "analyze" | "info" | "error" | "memory", message: string, path?: string) => {
+    const newAction: AgentAction = {
+      id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      type,
+      message,
+      path,
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setAgentActions(prev => [newAction, ...prev]);
+  };
+
+  const safeAlert = (message: string, type: "info" | "error" = "info") => {
+    try {
+      addAgentAction(type, message);
+    } catch {}
+    try {
+      if (typeof window !== "undefined" && typeof window.alert === "function") {
+        window.alert(message);
+      }
+    } catch {
+      // Handled if browser sandbox blocks window.alert
+    }
+  };
 
   // Landing Page & Workspace Entrance States - Default to active workspace for instant usability
   const [hasEnteredWorkspace, setHasEnteredWorkspace] = useState<boolean>(true);
@@ -1176,7 +1200,7 @@ export default function App() {
           return;
         }
       } catch (err: any) {
-        alert(`Google Sign-In Failed: ${err.message}`);
+        safeAlert(`Google Sign-In Failed: ${err.message}`, "error");
         return;
       } finally {
         setIsGmailLoggingIn(false);
@@ -1252,7 +1276,7 @@ export default function App() {
     const path = filePath.replace(/^\/+/, "");
     
     if (files.some(f => f.path.toLowerCase() === path.toLowerCase())) {
-      alert("A file with this name already exists!");
+      safeAlert("A file with this name already exists!", "error");
       return;
     }
 
@@ -1315,7 +1339,7 @@ export default function App() {
     if (!folderPath.trim()) return;
     const cleaned = folderPath.replace(/^\/+/, "").replace(/\/+$/, "");
     if (emptyFolders.includes(cleaned)) {
-      alert("This folder already exists!");
+      safeAlert("This folder already exists!", "error");
       return;
     }
     setEmptyFolders([...emptyFolders, cleaned]);
@@ -1374,7 +1398,7 @@ export default function App() {
     }
 
     if (files.some(f => f.path.toLowerCase() === newPath.toLowerCase() && f.path.toLowerCase() !== oldPath.toLowerCase())) {
-      alert(`A file named "${newPath}" already exists!`);
+      safeAlert(`A file named "${newPath}" already exists!`, "error");
       return;
     }
 
@@ -1496,10 +1520,10 @@ export default function App() {
     } catch (err: any) {
       const msg = err?.message || String(err);
       if (msg.includes("403") || msg.includes("access_denied") || msg.includes("verification process")) {
-        alert("Google OAuth 403 Access Denied: The Google Cloud app is in Testing Mode. Go to the Gmail tab to use 'Paste Access Token' or Publish the App in Google Cloud Console.");
+        safeAlert("Google OAuth 403 Access Denied: The Google Cloud app is in Testing Mode. Go to the Gmail tab to use 'Paste Access Token' or Publish the App in Google Cloud Console.", "error");
         setActiveTab("gmail");
       } else {
-        alert(`Gmail Login Failed: ${msg}`);
+        safeAlert(`Gmail Login Failed: ${msg}`, "error");
       }
     } finally {
       setIsGmailLoggingIn(false);
@@ -1526,7 +1550,7 @@ export default function App() {
     setIsSendingEmail(true);
     try {
       await googleSendEmail(gmailToken, emailTo, emailSubject, emailBody);
-      alert("Email sent successfully!");
+      safeAlert("Email sent successfully!", "info");
       addAgentAction("info", `Email sent to ${emailTo}: "${emailSubject}"`);
       // Reset compose state
       setEmailTo("");
@@ -1536,7 +1560,7 @@ export default function App() {
       // Refresh inbox
       fetchGmailInbox(gmailToken, gmailSearchQuery);
     } catch (err: any) {
-      alert(`Failed to send email: ${err.message}`);
+      safeAlert(`Failed to send email: ${err.message}`, "error");
       addAgentAction("error", `Gmail send failed: ${err.message}`);
     } finally {
       setIsSendingEmail(false);
@@ -1545,7 +1569,7 @@ export default function App() {
 
   const handleGenerateAIDraft = async () => {
     if (!aiDraftPrompt.trim()) {
-      alert("Please enter a short description of the email you want to draft.");
+      safeAlert("Please enter a short description of the email you want to draft.", "info");
       return;
     }
     setIsDraftingAI(true);
@@ -1562,12 +1586,15 @@ export default function App() {
         }
       ];
 
+      const sessionToken = await ensureSessionToken().catch(() => "");
+      const authHeaders = getAuthHeaders(apiKey);
+      if (sessionToken && !authHeaders["X-Session-Id"]) {
+        authHeaders["X-Session-Id"] = sessionToken;
+      }
+
       const response = await fetch("/api/openrouter/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": apiKey ? `Bearer ${apiKey}` : ""
-        },
+        headers: authHeaders,
         body: JSON.stringify({
           model: selectedModel,
           messages: draftMessages,
@@ -1587,7 +1614,7 @@ export default function App() {
         addAgentAction("info", "Generated custom email body draft using AI Assistant.");
       }
     } catch (err: any) {
-      alert(`AI Draft Generator failed: ${err.message}`);
+      safeAlert(`AI Draft Generator failed: ${err.message}`, "error");
     } finally {
       setIsDraftingAI(false);
     }
@@ -1893,7 +1920,7 @@ export default function App() {
   // YouTube Agent Utilities
   const handleAnalyzeYoutube = async () => {
     if (!ytUrl.trim()) {
-      alert("Please enter a valid YouTube URL or video ID!");
+      safeAlert("Please enter a valid YouTube URL or video ID!", "error");
       return;
     }
     setIsYtLoading(true);
@@ -2336,7 +2363,7 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
   const handleRunActiveFile = async (commandOverride?: string) => {
     const activeFile = files.find(f => f.path === selectedFilePath);
     if (!activeFile) {
-      alert("No active file selected to run!");
+      safeAlert("No active file selected to run!", "info");
       return;
     }
 
@@ -2418,19 +2445,6 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
         }
       ]);
     }
-  };
-
-
-
-  const addAgentAction = (type: "create" | "edit" | "delete" | "analyze" | "info" | "error" | "memory", message: string, path?: string) => {
-    const newAction: AgentAction = {
-      id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      type,
-      message,
-      path,
-      timestamp: new Date().toLocaleTimeString()
-    };
-    setAgentActions(prev => [newAction, ...prev]);
   };
 
   // ----------------------------------------------------

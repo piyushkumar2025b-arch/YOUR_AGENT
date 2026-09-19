@@ -233,7 +233,7 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({
       }
       setAudioError(`No playable tracks found for "${q}". Try another search.`);
     } catch (err: any) {
-      console.error("Music API search error:", err);
+      console.warn("Music API search notice:", err?.message || err);
       setAudioError("Unable to fetch online results. Switched to featured hits.");
     } finally {
       setIsLoading(false);
@@ -252,8 +252,8 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({
           localAudioRef.current.play().then(() => {
             setLocalIsPlaying(true);
           }).catch(e => {
-            console.warn("Audio play error:", e);
-            setLocalIsPlaying(true);
+            console.debug("Audio play deferred or interrupted:", e);
+            setLocalIsPlaying(false);
           });
         }
       } else {

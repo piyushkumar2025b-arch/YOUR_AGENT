@@ -597,12 +597,13 @@ export const TsxComponentPreviewer: React.FC<TsxComponentPreviewerProps> = ({
         setTimeout(() => window.lucide.createIcons(), 50);
       }
     } catch(err) {
-      console.error("TSX Compilation / Execution Error:", err.message);
+      const errMsg = (err && err.message) || String(err);
+      console.warn("TSX Compilation / Execution Error:", errMsg);
       const TARGET_ORIGIN = ${JSON.stringify(typeof window !== "undefined" && window.location?.origin ? window.location.origin : "*")};
       window.parent.postMessage({
         source: 'tsx-preview-sandbox',
         type: 'error',
-        message: err.message
+        message: errMsg
       }, TARGET_ORIGIN);
     }
   </script>

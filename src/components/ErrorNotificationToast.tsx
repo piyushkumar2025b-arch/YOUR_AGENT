@@ -11,6 +11,7 @@ export const ErrorNotificationToast: React.FC<Props> = ({ onOpenErrorConsole }) 
   const [visible, setVisible] = useState<boolean>(false);
 
   useEffect(() => {
+    let hideTimer: ReturnType<typeof setTimeout> | null = null;
     // Record current newest error ID on initial mount so we only notify for fresh errors occurring during this session
     const currentErrors = errorHandler.getErrors();
     let lastSeenId: string | null = currentErrors.length > 0 ? currentErrors[0].id : null;
@@ -24,16 +25,18 @@ export const ErrorNotificationToast: React.FC<Props> = ({ onOpenErrorConsole }) 
           setLatestError(newest);
           setVisible(true);
 
-          // Auto hide after 7 seconds
-          const timer = setTimeout(() => {
+          if (hideTimer) clearTimeout(hideTimer);
+          hideTimer = setTimeout(() => {
             setVisible(false);
           }, 7000);
-          return () => clearTimeout(timer);
         }
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (hideTimer) clearTimeout(hideTimer);
+    };
   }, []);
 
   if (!visible || !latestError) return null;

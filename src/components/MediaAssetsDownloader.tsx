@@ -228,7 +228,9 @@ export const MediaAssetsDownloader: React.FC<{ theme?: "light" | "dark" }> = ({ 
           setAudioProgress((audio.currentTime / audio.duration) * 100);
         }
       };
-      audio.play().catch((e) => console.error("Audio play error", e));
+      audio.play().catch((e) => {
+        console.debug("Audio preview playback prevented:", e?.message || e);
+      });
       audio.onended = () => {
         setPlayingAudioId(null);
         setAudioProgress(0);

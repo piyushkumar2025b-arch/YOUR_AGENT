@@ -44,6 +44,15 @@ export const AiVoiceSynthAgent: React.FC<AiVoiceSynthAgentProps> = ({
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [recordedTranscript, setRecordedTranscript] = useState<string>("");
 
+  const safeNotify = (msg: string) => {
+    onAddLog?.(msg, "error");
+    try {
+      if (typeof window !== "undefined" && typeof window.alert === "function") {
+        window.alert(msg);
+      }
+    } catch {}
+  };
+
   useEffect(() => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       const updateVoices = () => {
@@ -60,7 +69,7 @@ export const AiVoiceSynthAgent: React.FC<AiVoiceSynthAgentProps> = ({
 
   const handleSpeak = () => {
     if (!("speechSynthesis" in window)) {
-      alert("Speech synthesis is not supported in this browser environment.");
+      safeNotify("Speech synthesis is not supported in this browser environment.");
       return;
     }
 
@@ -127,7 +136,7 @@ export const AiVoiceSynthAgent: React.FC<AiVoiceSynthAgentProps> = ({
   const toggleRecording = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("Speech Recognition API is not supported in this browser.");
+      safeNotify("Speech Recognition API is not supported in this browser.");
       return;
     }
 

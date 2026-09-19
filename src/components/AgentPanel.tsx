@@ -613,7 +613,12 @@ Provide 100% complete implementation. Output direct XML file operators. Zero pla
   // Run full multi-agent workflow
   const handleRunPipeline = async () => {
     if (activeWorkflow.length === 0) {
-      alert("Please add at least one workflow step first!");
+      onAddLog("info", "Please add at least one workflow step first!");
+      try {
+        if (typeof window !== "undefined" && typeof window.alert === "function") {
+          window.alert("Please add at least one workflow step first!");
+        }
+      } catch {}
       return;
     }
 

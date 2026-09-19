@@ -283,7 +283,11 @@ export const StudyAgent: React.FC<StudyAgentProps> = ({
 
   const toggleVoiceInput = () => {
     if (!recognitionRef.current) {
-      alert("Speech recognition is not supported in this browser. Please try Chrome or Edge.");
+      try {
+        if (typeof window !== "undefined" && typeof window.alert === "function") {
+          window.alert("Speech recognition is not supported in this browser. Please try Chrome or Edge.");
+        }
+      } catch {}
       return;
     }
 

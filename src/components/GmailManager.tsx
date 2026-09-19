@@ -222,7 +222,7 @@ export const GmailManager: React.FC<GmailManagerProps> = ({
   // Real Attachment Downloader
   const handleDownloadAttachment = async (attachment: GmailAttachmentInfo) => {
     if (!selectedEmail || !currentToken || !attachment.attachmentId) {
-      alert("Attachment ID unavailable or expired.");
+      setSendStatus({ type: "error", message: "Attachment ID unavailable or expired." });
       return;
     }
 
@@ -250,9 +250,10 @@ export const GmailManager: React.FC<GmailManagerProps> = ({
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(downloadUrl);
+      setSendStatus({ type: "success", message: `Downloaded ${attachment.filename}` });
     } catch (err: any) {
-      console.error("Failed to download attachment:", err);
-      alert(`Failed to download attachment: ${err?.message || "Error"}`);
+      console.warn("Failed to download attachment:", err);
+      setSendStatus({ type: "error", message: `Failed to download attachment: ${err?.message || "Error"}` });
     } finally {
       setDownloadingAttId(null);
     }

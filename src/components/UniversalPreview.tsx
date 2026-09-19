@@ -374,7 +374,8 @@ export const UniversalPreview: React.FC<UniversalPreviewProps> = ({
         window.lucide.createIcons();
       }
     } catch(err) {
-      console.error("Workspace Execution Error:", err.message);
+      const errMsg = (err && err.message) || String(err);
+      console.warn("Workspace Execution Error:", errMsg);
       const rootEl = document.getElementById('root') || document.body;
       const errBox = document.createElement('div');
       errBox.style.padding = '16px';
@@ -385,7 +386,7 @@ export const UniversalPreview: React.FC<UniversalPreviewProps> = ({
       errBox.style.color = '#991b1b';
       errBox.style.fontFamily = 'monospace';
       errBox.style.fontSize = '12px';
-      errBox.innerHTML = '<strong>Runtime Render Exception:</strong><br/>' + err.message;
+      errBox.innerHTML = '<strong>Runtime Render Exception:</strong><br/>' + errMsg;
       rootEl.prepend(errBox);
     }
   </script>
