@@ -5736,6 +5736,9 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
+    app.get("/assets/*", (req, res) => {
+      res.status(404).type("text/plain").send("Asset chunk not found");
+    });
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });

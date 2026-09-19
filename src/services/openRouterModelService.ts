@@ -1,3 +1,5 @@
+import { fetchWithAuth } from "../utils/apiAuth";
+
 // Dynamic OpenRouter Model Cache and Fallback Provider
 let cachedFreeModels: string[] = [];
 let lastFetchTime = 0;
@@ -21,25 +23,25 @@ export async function getActiveFreeModels(userAuthHeader?: string): Promise<stri
   }
 
   try {
-    const headers: Record<string, string> = {
-      "HTTP-Referer": "https://ai.studio/build",
-      "X-Title": "Code Agent"
-    };
-    if (userAuthHeader) {
-      headers["Authorization"] = userAuthHeader;
-    }
-
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
+    const timeout = setTimeout(() => {
+      try {
+        controller.abort("Model fetch timeout");
+      } catch {}
+    }, 4000);
 
-    const res = await fetch("https://openrouter.ai/api/v1/models", {
-      headers,
+    const userKey = userAuthHeader && userAuthHeader.startsWith("Bearer ")
+      ? userAuthHeader.replace("Bearer ", "").trim()
+      : undefined;
+
+    const res = await fetchWithAuth("/api/openrouter/models", {
       signal: controller.signal
-    });
+    }, userKey);
+
     clearTimeout(timeout);
 
     if (res.ok) {
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
       if (Array.isArray(data?.data)) {
         const liveFree = data.data
           .filter((m: any) => m?.id && (m.id.endsWith(":free") || m.pricing?.prompt === "0"))
@@ -53,7 +55,7 @@ export async function getActiveFreeModels(userAuthHeader?: string): Promise<stri
       }
     }
   } catch (e) {
-    // Non-blocking fallback to curated list
+    // Non-blocking silent fallback to curated static list
   }
 
   if (cachedFreeModels.length === 0) {

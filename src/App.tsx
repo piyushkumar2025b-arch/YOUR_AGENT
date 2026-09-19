@@ -107,10 +107,11 @@ import { exportSingleFile, exportFolderZip, exportWorkspaceZip, exportWordDocume
 import { popularModels, deduplicateModels, getFileBadgeAndIcon } from "./utils/fileHelpers";
 import { highlightCode } from "./utils/syntaxHighlighter";
 import { TOP_REAL_CHARTS } from "./data/musicTracks";
-import { ensureSessionToken } from "./utils/apiAuth";
+import { ensureSessionToken, getAuthHeaders } from "./utils/apiAuth";
 import { getOrFetchModels } from "./utils/modelsCache";
-const LandingPage = React.lazy(() => import("./components/LandingPage").then(m => ({ default: m.LandingPage })));
-const SystemSecurityShieldModal = React.lazy(() => import("./components/SystemSecurityShieldModal").then(m => ({ default: m.SystemSecurityShieldModal })));
+import { safeLazy } from "./utils/lazyRetry";
+import { SystemSecurityShieldModal } from "./components/SystemSecurityShieldModal";
+const LandingPage = safeLazy(() => import("./components/LandingPage"), "LandingPage");
 import {
   BorderLayoutSlidersBar,
   VerticalResizeSliderHandle,
@@ -2714,7 +2715,7 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
         try {
           const loopRes = await fetch("/api/openrouter/chat", {
             method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": apiKey ? `Bearer ${apiKey}` : "" },
+            headers: authHeaders,
             signal: currentController.signal,
             body: JSON.stringify({
               model: selectedModel,
@@ -2764,17 +2765,19 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
       const isAbort =
         err?.name === "AbortError" ||
         err?.name === "CanceledError" ||
+        err?.name === "TimeoutError" ||
         err?.code === 20 ||
         currentController.signal.aborted ||
         (err?.message && String(err.message).toLowerCase().includes("abort")) ||
         (err?.message && String(err.message).toLowerCase().includes("signal is aborted")) ||
-        (err?.message && String(err.message).toLowerCase().includes("canceled"));
+        (err?.message && String(err.message).toLowerCase().includes("canceled")) ||
+        (err?.message && String(err.message).toLowerCase().includes("cancelled"));
 
       if (isAbort) {
         console.debug("Prompt request was aborted");
         return;
       }
-      console.error("Agent chat execution error:", err);
+      console.warn("Agent chat execution error:", err);
       addAgentAction("error", `Agent error: ${err.message || "Network error"}`);
       const isNetworkErr = err.message === "Failed to fetch" || err.name === "TypeError";
       const userMessage = isNetworkErr

@@ -11,7 +11,9 @@ export const ErrorNotificationToast: React.FC<Props> = ({ onOpenErrorConsole }) 
   const [visible, setVisible] = useState<boolean>(false);
 
   useEffect(() => {
-    let lastSeenId: string | null = null;
+    // Record current newest error ID on initial mount so we only notify for fresh errors occurring during this session
+    const currentErrors = errorHandler.getErrors();
+    let lastSeenId: string | null = currentErrors.length > 0 ? currentErrors[0].id : null;
 
     const unsubscribe = errorHandler.subscribe((logs) => {
       if (logs.length > 0) {

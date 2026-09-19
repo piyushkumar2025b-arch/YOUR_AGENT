@@ -22,13 +22,13 @@ import { VirtualFile } from "../types";
 import { TouchFXOverlay } from "./TouchFXOverlay";
 import { ErrorNotificationToast } from "./ErrorNotificationToast";
 import { safeLazy } from "../utils/lazyRetry";
+import { SystemErrorLogCenterModal } from "./SystemErrorLogCenterModal";
+import { SystemSecurityShieldModal } from "./SystemSecurityShieldModal";
 
 const MathPlotterModal = safeLazy(() => import("./MathPlotterModal"), "MathPlotterModal");
 const RunnerModulesModal = safeLazy(() => import("./RunnerModulesModal"), "RunnerModulesModal");
 const CodeRunnerModal = safeLazy(() => import("./CodeRunnerModal"), "CodeRunnerModal");
 const KeyboardShortcutsModal = safeLazy(() => import("./KeyboardShortcutsModal"), "KeyboardShortcutsModal");
-const SystemSecurityShieldModal = safeLazy(() => import("./SystemSecurityShieldModal"), "SystemSecurityShieldModal");
-const SystemErrorLogCenterModal = safeLazy(() => import("./SystemErrorLogCenterModal"), "SystemErrorLogCenterModal");
 const ApiHealthDashboardModal = safeLazy(() => import("./ApiHealthDashboardModal"), "ApiHealthDashboardModal");
 const ThemeSelectorModal = safeLazy(() => import("./ThemeSelectorModal"), "ThemeSelectorModal");
 const GoogleWorkspaceModal = safeLazy(() => import("./GoogleWorkspaceModal"), "GoogleWorkspaceModal");

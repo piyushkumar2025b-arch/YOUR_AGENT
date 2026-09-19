@@ -64,9 +64,15 @@ export const IpGeoNetworkAgent: React.FC<IpGeoNetworkAgentProps> = ({
         ? `/api/ip/geo?ip=${encodeURIComponent(queryIp.trim())}`
         : "/api/ip/geo";
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        try { controller.abort("IP lookup timeout (5000ms)"); } catch {}
+      }, 5000);
+
       const res = await fetch(endpoint, {
-        signal: AbortSignal.timeout(5000)
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
       const latency = Math.round(performance.now() - startTime);
       setPingMs(latency);
 

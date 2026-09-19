@@ -71,7 +71,7 @@ export async function fetchWithAuth(
   options: RequestInit = {},
   userApiKey?: string
 ): Promise<Response> {
-  const sessionToken = await ensureSessionToken();
+  const sessionToken = await ensureSessionToken().catch(() => "");
   const authHeaders = getAuthHeaders(userApiKey);
   if (sessionToken && !authHeaders["X-Session-Id"]) {
     authHeaders["X-Session-Id"] = sessionToken;
@@ -82,9 +82,27 @@ export async function fetchWithAuth(
     ...(options.headers as Record<string, string> || {})
   };
 
-  return fetch(url, {
-    ...options,
-    headers: mergedHeaders
-  });
+  try {
+    return await fetch(url, {
+      ...options,
+      headers: mergedHeaders
+    });
+  } catch (err: any) {
+    const isAbort =
+      Boolean(options.signal?.aborted) ||
+      err?.name === "AbortError" ||
+      err?.name === "CanceledError" ||
+      err?.code === 20 ||
+      (err?.message && String(err.message).toLowerCase().includes("abort")) ||
+      (err?.message && String(err.message).toLowerCase().includes("signal is aborted"));
+
+    if (isAbort) {
+      return new Response(JSON.stringify({ error: "Request aborted", aborted: true }), {
+        status: 499,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    throw err;
+  }
 }
 

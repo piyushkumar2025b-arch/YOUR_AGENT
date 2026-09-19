@@ -44,7 +44,9 @@ export const DeepResearchAIAgent: React.FC<DeepResearchAIAgentProps> = ({
 
   useEffect(() => {
     return () => {
-      abortControllerRef.current?.abort();
+      try {
+        abortControllerRef.current?.abort("Component unmounted");
+      } catch {}
     };
   }, []);
 

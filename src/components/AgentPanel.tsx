@@ -267,7 +267,9 @@ export const AgentPanel: React.FC<AgentPanelProps> = ({
   // Interrupt Current Agent Execution
   const handleInterruptExecution = () => {
     if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+      try {
+        abortControllerRef.current.abort("Execution manually interrupted by user");
+      } catch {}
     }
     setIsRunningPipeline(false);
     

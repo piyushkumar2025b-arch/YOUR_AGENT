@@ -66,22 +66,28 @@ class ErrorHandlerService {
       return (
         errName === "AbortError" ||
         errName === "CanceledError" ||
+        errName === "TimeoutError" ||
         errCode === 20 ||
         lowerMsg.includes("aborterror") ||
         lowerMsg.includes("abort") ||
         lowerMsg.includes("signal is aborted") ||
+        lowerMsg.includes("signal is aborted without reason") ||
         lowerMsg.includes("the user aborted a request") ||
         lowerMsg.includes("canceled") ||
         lowerMsg.includes("cancelled") ||
-        lowerMsg.includes("operation was aborted")
+        lowerMsg.includes("operation was aborted") ||
+        lowerMsg.includes("request timed out")
       );
     };
 
     // Capture uncaught JavaScript runtime errors
     window.addEventListener("error", (event: ErrorEvent) => {
       const msg = event.message || (event.error && (event.error.message || event.error.name)) || "";
-      if (isAbortError(event.error, msg)) {
-        try { event.preventDefault(); } catch {}
+      if (isAbortError(event.error, msg) || String(msg).toLowerCase().includes("failed to fetch")) {
+        try {
+          event.preventDefault();
+          event.stopImmediatePropagation?.();
+        } catch {}
         return;
       }
 
@@ -91,7 +97,10 @@ class ErrorHandlerService {
         msg.includes("error loading dynamically imported module") ||
         msg.includes("Importing a module script failed")
       ) {
-        try { event.preventDefault(); } catch {}
+        try {
+          event.preventDefault();
+          event.stopImmediatePropagation?.();
+        } catch {}
         console.warn("[ErrorHandler] Caught stale dynamic chunk load event:", msg);
         return;
       }
@@ -122,7 +131,10 @@ class ErrorHandlerService {
 
       // Ignore intentional cancellations and aborts (e.g. AbortController / user navigation / timeout cleanups)
       if (isAbortError(reason, message)) {
-        try { event.preventDefault(); } catch {}
+        try {
+          event.preventDefault();
+          event.stopImmediatePropagation?.();
+        } catch {}
         return;
       }
 
@@ -132,25 +144,27 @@ class ErrorHandlerService {
         message.includes("error loading dynamically imported module") ||
         message.includes("Importing a module script failed")
       ) {
-        try { event.preventDefault(); } catch {}
+        try {
+          event.preventDefault();
+          event.stopImmediatePropagation?.();
+        } catch {}
         console.warn("[ErrorHandler] Caught stale dynamic chunk rejection:", message);
         return;
       }
 
       // For standard "Failed to fetch" (e.g. server restart or offline), mark handled to avoid uncaught crash
-      if (message.toLowerCase().includes("failed to fetch")) {
-        try { event.preventDefault(); } catch {}
-        this.logError({
-          message: `Network gateway connection interrupted: ${message}`,
-          category: "Network",
-          severity: "warning",
-          source: "network",
-          stack
-        });
+      if (message.toLowerCase().includes("failed to fetch") || message.toLowerCase().includes("network request failed")) {
+        try {
+          event.preventDefault();
+          event.stopImmediatePropagation?.();
+        } catch {}
         return;
       }
 
-      try { event.preventDefault(); } catch {}
+      try {
+        event.preventDefault();
+        event.stopImmediatePropagation?.();
+      } catch {}
       this.logError({
         message,
         category: "API",
@@ -321,11 +335,14 @@ class ErrorHandlerService {
         this.logError({
           message: `Network fetch error for ${url}: ${err?.message || "Unknown error"}`,
           category: "Network",
-          severity: "error",
+          severity: "warning",
           source: "safeFetch",
           metadata: { url, isAbort: false }
         });
-        throw err;
+        return new Response(JSON.stringify({ error: err?.message || "Network error", failed: true }), {
+          status: 503,
+          headers: { "Content-Type": "application/json" }
+        });
       }
       return new Response(JSON.stringify({ error: "Request aborted or timed out", aborted: true }), {
         status: 499,

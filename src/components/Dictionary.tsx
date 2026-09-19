@@ -90,9 +90,15 @@ export const Dictionary: React.FC<DictionaryProps> = ({
 
     // 1. Fetch free public dictionary API via resilient proxy
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        try { controller.abort("Dictionary lookup timeout (4000ms)"); } catch {}
+      }, 4000);
+
       const res = await fetch(`/api/dictionary/${encodeURIComponent(cleanWord.toLowerCase())}`, {
-        signal: AbortSignal.timeout(4000)
+        signal: controller.signal
       }).catch(() => null);
+      clearTimeout(timeoutId);
       if (res && res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
