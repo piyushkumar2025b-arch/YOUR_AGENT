@@ -3,6 +3,8 @@
  * Handles live fetch calls to public jokes APIs, facts, advice, quotes, crypto, and public API directories.
  */
 
+import { fetchWithAuth } from "../utils/apiAuth";
+
 export interface JokeItem {
   id: string;
   setup?: string;
@@ -646,7 +648,7 @@ export async function fetchLiveJoke(category: string = "any"): Promise<JokeItem>
   const cat = category.toLowerCase();
 
   try {
-    const res = await fetch(`/api/jokes/random?category=${encodeURIComponent(cat)}`);
+    const res = await fetchWithAuth(`/api/jokes/random?category=${encodeURIComponent(cat)}`);
     if (res.ok) {
       const data = await res.json();
       return {
@@ -674,7 +676,7 @@ export async function fetchLiveJoke(category: string = "any"): Promise<JokeItem>
  */
 export async function fetchLiveAdvice(): Promise<AdviceItem> {
   try {
-    const res = await fetch("/api/advice/random");
+    const res = await fetchWithAuth("/api/advice/random");
     if (res.ok) {
       const data = await res.json();
       if (data.advice) {
@@ -698,7 +700,7 @@ export async function fetchLiveAdvice(): Promise<AdviceItem> {
  */
 export async function fetchLiveQuote(): Promise<QuoteItem> {
   try {
-    const res = await fetch("/api/quotes/random");
+    const res = await fetchWithAuth("/api/quotes/random");
     if (res.ok) {
       const data = await res.json();
       return {
@@ -722,7 +724,7 @@ export async function fetchLiveQuote(): Promise<QuoteItem> {
  */
 export async function fetchLiveFact(type: "cat" | "dog" | "number" = "cat"): Promise<FactItem> {
   try {
-    const res = await fetch(`/api/facts/random?type=${encodeURIComponent(type)}`);
+    const res = await fetchWithAuth(`/api/facts/random?type=${encodeURIComponent(type)}`);
     if (res.ok) {
       const data = await res.json();
       if (data.fact) {
@@ -753,7 +755,7 @@ export async function testPublicEndpointLive(endpoint: PublicApiEndpoint) {
       method: endpoint.method,
       headers: endpoint.headers || {}
     };
-    const res = await fetch(targetUrl, options);
+    const res = await fetchWithAuth(targetUrl, options);
     const endTime = performance.now();
     const durationMs = Math.round(endTime - startTime);
 

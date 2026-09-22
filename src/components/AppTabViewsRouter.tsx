@@ -58,6 +58,7 @@ const EarthSpaceLiveAgent = safeLazy(() => import("./EarthSpaceLiveAgent"), "Ear
 const MusicPlayer = safeLazy(() => import("./MusicPlayer"), "MusicPlayer");
 const YouTubeSearchPlayerAgent = safeLazy(() => import("./YouTubeSearchPlayerAgent"), "YouTubeSearchPlayerAgent");
 const DocumentChatWorkspace = safeLazy(() => import("./DocumentChatWorkspace"), "DocumentChatWorkspace");
+const MusicStudioWorkstation = safeLazy(() => import("./MusicStudioWorkstation"), "MusicStudioWorkstation");
 
 interface AppTabViewsRouterProps {
   activeTab: string;
@@ -638,6 +639,14 @@ export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = ({
           onVolumeChange={(vol: number) => {
             if (setMusicVolume) setMusicVolume(vol);
           }}
+        />
+      )}
+
+      {/* VIEW: PRO AUDIO STUDIO (POLYPHONIC PIANO & 16-STEP DRUM MACHINE) */}
+      {(activeTab === "music-studio" || activeTab === "piano" || activeTab === "drums") && (
+        <MusicStudioWorkstation
+          theme={theme}
+          initialMode={activeTab === "piano" ? "piano" : activeTab === "drums" ? "drums" : "studio"}
         />
       )}
 

@@ -166,7 +166,7 @@ export default function App() {
   });
   const activeFile = files.find(f => f.path === selectedFilePath);
   const activeBadge = activeFile ? getFileBadgeAndIcon(activeFile.path) : null;
-  const [activeTab, setActiveTab] = useState<"editor" | "preview" | "actions" | "gmail" | "music" | "youtube" | "calculator" | "chat" | "photos" | "map" | "story" | "dictionary" | "gaming" | "settings" | "agents" | "skills" | "github" | "search" | "supabase" | "firebase" | "study" | "cp" | "share" | "trending-repos" | "weather" | "live-quiz" | "media-downloader" | "doc-previewer" | "photo-editor" | "jokes" | "api-hub" | "deep-research" | "code-analyzer" | "image-studio" | "voice-synth" | "translator" | "content-creator" | "currency-agent" | "qrcode-agent" | "wiki-agent" | "nasa-agent" | "ipgeo-agent" | "crypto-agent" | "mockdata-agent" | "animal-agent" | "opentrivia-agent" | "countries-agent" | "universities-agent" | "advice-agent" | "picsum-agent" | "books-agent" | "airquality-agent" | "calendar-agent" | "english-agent" | "news-agent">("editor");
+  const [activeTab, setActiveTab] = useState<"editor" | "preview" | "actions" | "gmail" | "music" | "music-studio" | "piano" | "drums" | "youtube" | "calculator" | "chat" | "photos" | "map" | "story" | "dictionary" | "gaming" | "settings" | "agents" | "skills" | "github" | "search" | "supabase" | "firebase" | "study" | "cp" | "share" | "trending-repos" | "weather" | "live-quiz" | "media-downloader" | "doc-previewer" | "photo-editor" | "jokes" | "api-hub" | "deep-research" | "code-analyzer" | "image-studio" | "voice-synth" | "translator" | "content-creator" | "currency-agent" | "qrcode-agent" | "wiki-agent" | "nasa-agent" | "ipgeo-agent" | "crypto-agent" | "mockdata-agent" | "animal-agent" | "opentrivia-agent" | "countries-agent" | "universities-agent" | "advice-agent" | "picsum-agent" | "books-agent" | "airquality-agent" | "calendar-agent" | "english-agent" | "news-agent">("editor");
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     const cached = localStorage.getItem("vibecoder_theme");
     return cached === "light" ? "light" : "dark";
@@ -3408,6 +3408,7 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
         unresolvedErrorCount={unresolvedErrorCount}
         setIsShortcutsHelpOpen={setIsShortcutsHelpOpen}
         setIsMathPlotterOpen={setIsMathPlotterOpen}
+        onOpenMusicStudio={() => setActiveTab("music-studio")}
         onOpenCalendar={() => setActiveTab("calendar-agent")}
         onOpenSecurityShield={() => setIsSecurityShieldOpen(true)}
         onOpenApiDashboard={() => setIsApiDashboardOpen(true)}

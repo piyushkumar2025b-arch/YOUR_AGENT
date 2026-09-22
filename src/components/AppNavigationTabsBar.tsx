@@ -219,6 +219,21 @@ export const AppNavigationTabsBar: React.FC<AppNavigationTabsBarProps> = ({
           Song Player
         </button>
         <button
+          onClick={() => setActiveTab("music-studio")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "music-studio" || activeTab === "piano" || activeTab === "drums"
+              ? (isDark ? "bg-indigo-600 text-white border border-indigo-400 font-bold shadow-md shadow-indigo-600/30" : "bg-indigo-50 text-indigo-700 border border-indigo-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50 glow-purple-hover" : "text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 glow-purple-hover")
+          }`}
+          title="Interactive Polyphonic Piano & 16-Step Drum Machine"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+          Piano & Drum Studio
+          <span className="px-1 py-0.2 text-[8px] bg-amber-500 text-black font-extrabold rounded uppercase">
+            New
+          </span>
+        </button>
+        <button
           onClick={() => setActiveTab("search")}
           className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
             activeTab === "search"

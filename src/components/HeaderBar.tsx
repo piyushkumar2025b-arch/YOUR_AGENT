@@ -18,7 +18,8 @@ import {
   LogOut, 
   ShieldCheck,
   ChevronDown,
-  Wrench
+  Wrench,
+  Music
 } from "lucide-react";
 import { WorkspaceTemplate } from "../types";
 import { BorderSettings } from "./BorderLayoutSliders";
@@ -38,6 +39,7 @@ export interface HeaderBarProps {
   unresolvedErrorCount?: number;
   setIsShortcutsHelpOpen?: (open: boolean) => void;
   setIsMathPlotterOpen?: (open: boolean) => void;
+  onOpenMusicStudio?: () => void;
   onOpenCalendar?: () => void;
   onOpenSecurityShield?: () => void;
   onOpenApiDashboard?: () => void;
@@ -66,6 +68,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   unresolvedErrorCount = 0,
   setIsShortcutsHelpOpen,
   setIsMathPlotterOpen,
+  onOpenMusicStudio,
   onOpenCalendar,
   onOpenSecurityShield,
   onOpenApiDashboard,
@@ -299,6 +302,19 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                 >
                   <Calculator className="w-4 h-4 text-indigo-400" />
                   <span className="font-medium">Math Functions Plotter</span>
+                </button>
+              )}
+
+              {onOpenMusicStudio && (
+                <button
+                  onClick={() => { onOpenMusicStudio(); setIsToolsOpen(false); }}
+                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer ${
+                    isDark ? "hover:bg-zinc-800 text-zinc-300" : "hover:bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  <Music className="w-4 h-4 text-violet-400" />
+                  <span className="font-medium">Piano & Drum Studio</span>
+                  <span className="ml-auto text-[9px] px-1 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold">New</span>
                 </button>
               )}
 
