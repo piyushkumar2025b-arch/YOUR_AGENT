@@ -979,9 +979,9 @@ export const VerticalResizeSliderHandle: React.FC<{
         setIsDragging(true);
       }}
       onDoubleClick={() => onWidthChange(340)}
-      className={`relative w-2 group cursor-col-resize select-none shrink-0 transition-colors flex items-center justify-center ${
+      className={`relative w-2 group cursor-col-resize select-none shrink-0 transition-colors flex items-center justify-center z-10 ${
         isDragging
-          ? "bg-indigo-500 text-white z-50 shadow-lg shadow-indigo-500/50"
+          ? "bg-indigo-500 text-white z-20 shadow-lg shadow-indigo-500/50"
           : theme === "dark"
           ? "bg-zinc-800/80 hover:bg-indigo-500/80"
           : "bg-slate-300 hover:bg-indigo-500"

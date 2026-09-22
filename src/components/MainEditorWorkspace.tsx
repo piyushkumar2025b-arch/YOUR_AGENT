@@ -257,11 +257,11 @@ export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = ({
   }, [deferredContent, activeFile?.language, highlightCode]);
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#1e1e1e] text-slate-300">
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#1e1e1e] text-slate-300 min-w-0">
       {activeFile ? (
         <>
           {/* Editor header panel */}
-          <div className="h-10 px-3 border-b border-white/5 flex items-center justify-between bg-[#1e1e1e] select-none shrink-0 overflow-x-auto text-xs">
+          <div className="h-10 px-3 border-b border-white/5 flex items-center justify-between bg-[#1e1e1e] select-none shrink-0 overflow-x-auto scrollbar-none text-xs">
             <div className="flex items-center gap-2.5 shrink-0">
               <div className="flex items-center gap-1.5 font-mono text-white/90">
                 <FileCode className="w-3.5 h-3.5 text-indigo-400 shrink-0" />

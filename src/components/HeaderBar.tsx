@@ -105,7 +105,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   }, [isToolsOpen]);
 
   return (
-    <header className={`w-full px-3.5 border-b flex items-center justify-between shrink-0 font-sans text-xs transition-colors duration-200 z-30 ${
+    <header className={`w-full px-3.5 border-b flex items-center justify-between shrink-0 font-sans text-xs transition-colors duration-200 z-40 relative ${
       isDark 
         ? "bg-[#101014] text-zinc-100 border-zinc-800/80" 
         : "bg-white text-slate-900 border-slate-200/80 shadow-xs"
@@ -252,8 +252,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           </button>
 
           {isToolsOpen && (
-            <div className={`absolute right-0 top-full mt-1.5 w-64 rounded-xl shadow-2xl border p-1.5 z-50 animate-in fade-in-50 zoom-in-95 space-y-0.5 ${
-              isDark ? "bg-[#18181b] border-zinc-800 text-zinc-100" : "bg-white border-slate-200 text-slate-900"
+            <div className={`absolute right-0 top-full mt-1.5 w-72 max-h-[calc(100vh-60px)] overflow-y-auto rounded-xl shadow-2xl border p-1.5 z-50 animate-in fade-in-50 zoom-in-95 space-y-0.5 ${
+              isDark ? "bg-[#18181b] border-zinc-800 text-zinc-100 shadow-black/80" : "bg-white border-slate-200 text-slate-900 shadow-slate-900/20"
             }`}>
               {onOpenSecurityShield && (
                 <button
