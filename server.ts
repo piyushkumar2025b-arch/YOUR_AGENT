@@ -4838,6 +4838,45 @@ app.post("/api/auth/guest-session", authLimiter, (req, res: any) => {
   });
 });
 
+// Generic Session Verification & Acquisition Endpoint
+app.all("/api/auth/session", (req, res: any) => {
+  const authHeader = req.headers.authorization;
+  const sessionHeader = req.headers["x-session-id"] as string | undefined;
+  const rawToken = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice(7).trim()
+    : sessionHeader?.replace(/^Bearer\s+/i, "").trim();
+
+  if (rawToken) {
+    const { valid, userId } = verifyUserToken(rawToken);
+    if (valid && userId) {
+      if (userId.startsWith("usr_guest_")) {
+        return res.json({
+          authenticated: true,
+          token: rawToken,
+          user: { id: userId, email: "guest@dev.local", name: "Guest Developer" }
+        });
+      }
+      const existingUser = userPersistence.getById(userId);
+      if (existingUser) {
+        return res.json({
+          authenticated: true,
+          token: rawToken,
+          user: { id: existingUser.id, email: existingUser.email, name: existingUser.name }
+        });
+      }
+    }
+  }
+
+  // Issue a fresh guest session token if unauthenticated
+  const guestId = "usr_guest_" + crypto.randomBytes(8).toString("hex");
+  const token = generateUserToken(guestId);
+  return res.json({
+    authenticated: true,
+    token,
+    user: { id: guestId, name: "Guest Developer", email: "guest@dev.local" }
+  });
+});
+
 // Sign Up Endpoint
 app.post("/api/auth/signup", authLimiter, (req, res: any) => {
   const { email, password, name } = req.body || {};
@@ -5725,6 +5764,17 @@ app.get("/api/system/security-audit", async (req, res) => {
     timestamp: new Date().toISOString(),
     auditTimestamp: new Date().toISOString(),
     checks
+  });
+});
+
+// Unhandled API Route 404 Fallback
+// Ensures non-existent /api/* requests return immediate 404 JSON and never fall through to Vite proxy loop
+app.all("/api/*", (req, res) => {
+  res.status(404).json({
+    ok: false,
+    error: "API endpoint not found",
+    path: req.originalUrl || req.url,
+    timestamp: new Date().toISOString()
   });
 });
 
