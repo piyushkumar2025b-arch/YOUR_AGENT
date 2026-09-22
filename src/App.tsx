@@ -86,7 +86,9 @@ import {
   Command,
   Repeat,
   ExternalLink,
-  Bug
+  Bug,
+  PanelLeftOpen,
+  PanelLeftClose
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { VirtualFile, Message, Model, AgentAction, WorkspaceTemplate, ExecutionStats } from "./types";
@@ -183,6 +185,31 @@ export default function App() {
   const [selectedAgentForChat, setSelectedAgentForChat] = useState<string>("all");
 
   // Resizable split screens & Adjustable Layout Sliders
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(() => {
+    const cached = localStorage.getItem("app_sidebar_open");
+    return cached !== null ? cached === "true" : true;
+  });
+
+  useEffect(() => {
+    localStorage.setItem("app_sidebar_open", String(isSidebarOpen));
+  }, [isSidebarOpen]);
+
+  // Global keyboard shortcut: Ctrl+B / Cmd+B toggles sidebar
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+        const target = e.target as HTMLElement;
+        if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+          return;
+        }
+        e.preventDefault();
+        setIsSidebarOpen(prev => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, []);
+
   const [sidebarWidth, setSidebarWidth] = useState<number>(340); // Pixel width (240px - 600px)
   const [editorWidth, setEditorWidth] = useState<number>(50); // Percentage split (20% - 80%)
   const [editorFontSize, setEditorFontSize] = useState<number>(13);
@@ -2536,13 +2563,7 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
 
     setMessages(prev => [...prev, newUserMsg]);
     if (!apiKey && !import.meta.env.VITE_OPENROUTER_API_KEY) {
-      setMessages(prev => [...prev, {
-        id: `msg-${Date.now()}-warn`,
-        role: "assistant",
-        content: "⚠️ **No API Key Set** — Please paste your OpenRouter API key in the sidebar (Settings → API Key) to start the agent. You can get a free key at https://openrouter.ai",
-        timestamp: new Date().toLocaleTimeString()
-      }]);
-      return;
+      addAgentAction("info", "Connected to Studio AI server (No custom OpenRouter key set; utilizing server models).");
     }
     setIsAgentProcessing(true);
     addAgentAction("analyze", "Agent is analyzing requirements...");
@@ -3421,6 +3442,8 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
         borderSettings={borderSettings}
         isGuest={currentAuthMode === "guest"}
         onExitWorkspace={() => setHasEnteredWorkspace(false)}
+        isSidebarOpen={isSidebarOpen}
+        onToggleSidebar={() => setIsSidebarOpen(prev => !prev)}
       />
 
       {/* INTERACTIVE BORDER & LAYOUT ADJUSTMENT SLIDERS BAR */}
@@ -3441,48 +3464,95 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
       {/* MAIN CONTAINER FRAMEWORK */}
       <div className="flex-1 flex overflow-hidden min-h-0">
         
-        {/* LEFT SIDEBAR - CONNECTOR & AGENT CHAT */}
-        <AiBrainSidebarPanel
-          theme={theme}
-          sidebarWidth={sidebarWidth}
-          showKey={showKey}
-          setShowKey={setShowKey}
-          apiKey={apiKey}
-          setApiKey={setApiKey}
-          apiConnectionStatus={apiConnectionStatus}
-          apiErrorMessage={apiErrorMessage}
-          handleTestKeyConnection={handleTestKeyConnection}
-          selectedModel={selectedModel}
-          setSelectedModel={setSelectedModel}
-          modelSearch={modelSearch}
-          setModelSearch={setModelSearch}
-          filteredModels={filteredModels}
-          messages={messages}
-          isAgentProcessing={isAgentProcessing}
-          chatEndRef={chatEndRef}
-          inputPrompt={inputPrompt}
-          setInputPrompt={setInputPrompt}
-          handleSendPrompt={handleSendPrompt}
-          handleStopPrompt={handleStopPrompt}
-          attachedFileForChat={attachedFileForChat}
-          setAttachedFileForChat={setAttachedFileForChat}
-          selectedAgentForChat={selectedAgentForChat}
-          setSelectedAgentForChat={setSelectedAgentForChat}
-          files={files}
-          setMessages={setMessages}
-          addAgentAction={addAgentAction}
-          setActiveTab={setActiveTab}
-        />
+        {/* COLLAPSED LEFT SIDEBAR ACTIVITY STRIP */}
+        {!isSidebarOpen && (
+          <aside
+            className={`w-11 border-r flex flex-col items-center py-2.5 space-y-3 shrink-0 select-none z-20 transition-all ${
+              theme === "dark" ? "border-zinc-800 bg-[#121214] text-zinc-300" : "border-slate-200 bg-white text-slate-700"
+            }`}
+          >
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-md transition-all cursor-pointer group relative"
+              title="Expand AI Sidebar (Ctrl+B)"
+            >
+              <PanelLeftOpen className="w-4 h-4" />
+              <span className="absolute left-12 top-1.5 whitespace-nowrap bg-zinc-900 text-white text-[10px] font-mono px-2 py-1 rounded shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border border-zinc-700">
+                Open AI Sidebar (Ctrl+B)
+              </span>
+            </button>
 
-        {/* VERTICAL DRAG HANDLE BETWEEN SIDEBAR & MAIN */}
-        <VerticalResizeSliderHandle
-          currentWidth={sidebarWidth}
-          onWidthChange={setSidebarWidth}
-          minWidth={240}
-          maxWidth={650}
-          label="Chat Sidebar Width"
-          theme={theme}
-        />
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className={`p-2 rounded-lg border transition-all cursor-pointer group relative ${
+                theme === "dark" ? "border-zinc-800 hover:bg-zinc-800 text-indigo-400" : "border-slate-200 hover:bg-slate-100 text-indigo-600"
+              }`}
+              title="AI Agent Chat (Click to open)"
+            >
+              <Bot className="w-4 h-4" />
+              {isAgentProcessing && (
+                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              )}
+            </button>
+
+            <div className="flex-1" />
+
+            <div
+              onClick={() => setIsSidebarOpen(true)}
+              className="text-[9px] font-mono tracking-widest text-zinc-500 uppercase cursor-pointer hover:text-indigo-400 transition-colors transform -rotate-90 whitespace-nowrap mb-6"
+            >
+              AI ASSISTANT
+            </div>
+          </aside>
+        )}
+
+        {/* LEFT SIDEBAR - CONNECTOR & AGENT CHAT */}
+        {isSidebarOpen && (
+          <>
+            <AiBrainSidebarPanel
+              onClose={() => setIsSidebarOpen(false)}
+              theme={theme}
+              sidebarWidth={sidebarWidth}
+              showKey={showKey}
+              setShowKey={setShowKey}
+              apiKey={apiKey}
+              setApiKey={setApiKey}
+              apiConnectionStatus={apiConnectionStatus}
+              apiErrorMessage={apiErrorMessage}
+              handleTestKeyConnection={handleTestKeyConnection}
+              selectedModel={selectedModel}
+              setSelectedModel={setSelectedModel}
+              modelSearch={modelSearch}
+              setModelSearch={setModelSearch}
+              filteredModels={filteredModels}
+              messages={messages}
+              isAgentProcessing={isAgentProcessing}
+              chatEndRef={chatEndRef}
+              inputPrompt={inputPrompt}
+              setInputPrompt={setInputPrompt}
+              handleSendPrompt={handleSendPrompt}
+              handleStopPrompt={handleStopPrompt}
+              attachedFileForChat={attachedFileForChat}
+              setAttachedFileForChat={setAttachedFileForChat}
+              selectedAgentForChat={selectedAgentForChat}
+              setSelectedAgentForChat={setSelectedAgentForChat}
+              files={files}
+              setMessages={setMessages}
+              addAgentAction={addAgentAction}
+              setActiveTab={setActiveTab}
+            />
+
+            {/* VERTICAL DRAG HANDLE BETWEEN SIDEBAR & MAIN */}
+            <VerticalResizeSliderHandle
+              currentWidth={sidebarWidth}
+              onWidthChange={setSidebarWidth}
+              minWidth={240}
+              maxWidth={650}
+              label="Chat Sidebar Width"
+              theme={theme}
+            />
+          </>
+        )}
 
         {/* RIGHT AREA - IDE WORKSPACE */}
         <main className="flex-1 flex flex-col h-full bg-slate-50/30 overflow-hidden min-w-0">

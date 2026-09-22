@@ -941,24 +941,32 @@ export const VerticalResizeSliderHandle: React.FC<{
   onWidthChange: (newWidth: number) => void;
   label?: string;
   theme?: "light" | "dark";
-}> = ({ currentWidth, minWidth = 180, maxWidth = 650, onWidthChange, label = "Sidebar Width", theme = "dark" }) => {
+}> = ({ currentWidth, minWidth = 240, maxWidth = 650, onWidthChange, label = "Sidebar Width", theme = "dark" }) => {
   const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     if (!isDragging) return;
 
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
     const handleMouseMove = (e: MouseEvent) => {
+      e.preventDefault();
       const newWidth = Math.min(maxWidth, Math.max(minWidth, e.clientX));
       onWidthChange(newWidth);
     };
 
     const handleMouseUp = () => {
       setIsDragging(false);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
     };
 
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", handleMouseUp);
     return () => {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
@@ -966,7 +974,11 @@ export const VerticalResizeSliderHandle: React.FC<{
 
   return (
     <div
-      onMouseDown={() => setIsDragging(true)}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        setIsDragging(true);
+      }}
+      onDoubleClick={() => onWidthChange(340)}
       className={`relative w-2 group cursor-col-resize select-none shrink-0 transition-colors flex items-center justify-center ${
         isDragging
           ? "bg-indigo-500 text-white z-50 shadow-lg shadow-indigo-500/50"
@@ -974,7 +986,7 @@ export const VerticalResizeSliderHandle: React.FC<{
           ? "bg-zinc-800/80 hover:bg-indigo-500/80"
           : "bg-slate-300 hover:bg-indigo-500"
       }`}
-      title={`Drag border slider to adjust ${label} (${currentWidth}px)`}
+      title={`Drag to adjust ${label} (${currentWidth}px). Double-click to reset.`}
     >
       {/* Slider Knob Icon Handle */}
       <div className="p-1 rounded-md bg-zinc-900 border border-zinc-700 text-indigo-400 group-hover:scale-110 transition-transform shadow-md">
@@ -983,7 +995,7 @@ export const VerticalResizeSliderHandle: React.FC<{
 
       {/* Hover Tooltip showing live pixel slider width */}
       <div className="absolute top-1/2 -translate-y-1/2 left-4 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 text-white border border-zinc-700 text-[10px] font-mono font-bold px-2 py-1 rounded shadow-xl whitespace-nowrap z-50">
-        {label}: <span className="text-indigo-400">{currentWidth}px</span>
+        {label}: <span className="text-indigo-400">{currentWidth}px</span> (Double-click to reset)
       </div>
     </div>
   );

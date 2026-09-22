@@ -12,7 +12,8 @@ import {
   Paperclip,
   Bot,
   Flame,
-  Database
+  Database,
+  PanelLeftClose
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Message, Model, VirtualFile } from "../types";
@@ -20,6 +21,7 @@ import { ThinkingPlanCard } from "./ThinkingPlanCard";
 import { ChatMessageItem } from "./ChatMessageItem";
 
 interface AiBrainSidebarPanelProps {
+  onClose?: () => void;
   theme: "light" | "dark" | string;
   sidebarWidth: number;
   showKey: boolean;
@@ -52,6 +54,7 @@ interface AiBrainSidebarPanelProps {
 }
 
 export const AiBrainSidebarPanel: React.FC<AiBrainSidebarPanelProps> = ({
+  onClose,
   theme,
   sidebarWidth,
   showKey,
@@ -86,10 +89,10 @@ export const AiBrainSidebarPanel: React.FC<AiBrainSidebarPanelProps> = ({
 
   return (
     <aside
-      className={`border-r flex flex-col h-full flex-1 min-h-0 overflow-hidden transition-all duration-150 shrink-0 ${
+      className={`border-r flex flex-col h-full min-h-0 overflow-hidden shrink-0 select-none ${
         isDark ? "border-zinc-800 bg-[#141416] text-white" : "border-slate-200 bg-slate-50/50 text-slate-900"
       }`}
-      style={{ width: `${sidebarWidth}px` }}
+      style={{ width: `${sidebarWidth}px`, minWidth: "240px", maxWidth: "650px" }}
     >
       {/* COMPACT AI BRAIN CONTROLS HEADER */}
       <div className={`p-3 border-b shadow-xs space-y-2 shrink-0 transition-all duration-200 ${
@@ -127,6 +130,20 @@ export const AiBrainSidebarPanel: React.FC<AiBrainSidebarPanelProps> = ({
           >
             <Key className="w-3.5 h-3.5" />
           </button>
+
+          {onClose && (
+            <button
+              onClick={onClose}
+              className={`p-1.5 rounded-lg border text-xs transition-colors cursor-pointer ${
+                isDark
+                  ? "border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800"
+                  : "border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+              }`}
+              title="Collapse AI Sidebar (Ctrl+B)"
+            >
+              <PanelLeftClose className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
         {/* Quick Selectors for Favorite Models */}

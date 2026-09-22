@@ -19,12 +19,16 @@ import {
   ShieldCheck,
   ChevronDown,
   Wrench,
-  Music
+  Music,
+  PanelLeft,
+  PanelLeftClose
 } from "lucide-react";
 import { WorkspaceTemplate } from "../types";
 import { BorderSettings } from "./BorderLayoutSliders";
 
 export interface HeaderBarProps {
+  isSidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
   workspaceTitle?: string;
   studioLogoPhoto?: string | null;
   setStudioLogoPhoto?: (photo: string | null) => void;
@@ -55,6 +59,8 @@ export interface HeaderBarProps {
 }
 
 export const HeaderBar: React.FC<HeaderBarProps> = ({
+  isSidebarOpen = true,
+  onToggleSidebar,
   workspaceTitle = "VibeCoder AI Studio",
   studioLogoPhoto,
   handleStudioLogoUpload,
@@ -106,8 +112,27 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
     }`}
     style={{ height: "46px" }}
     >
-      {/* Left section: Studio Logo & Title */}
+      {/* Left section: Sidebar Toggle, Studio Logo & Title */}
       <div className="flex items-center gap-2.5">
+        {/* Sidebar Toggle Button */}
+        {onToggleSidebar && (
+          <button
+            onClick={onToggleSidebar}
+            className={`p-1.5 rounded-lg border transition-all cursor-pointer flex items-center justify-center ${
+              isSidebarOpen
+                ? (isDark 
+                    ? "bg-zinc-800/80 border-zinc-700 text-indigo-400 hover:text-white hover:bg-zinc-700" 
+                    : "bg-slate-100 border-slate-200 text-indigo-600 hover:bg-slate-200")
+                : (isDark 
+                    ? "bg-indigo-600/20 border-indigo-500/40 text-indigo-300 hover:bg-indigo-600/30" 
+                    : "bg-indigo-50 border-indigo-200 text-indigo-600 hover:bg-indigo-100")
+            }`}
+            title={isSidebarOpen ? "Hide AI Sidebar (Ctrl+B)" : "Show AI Sidebar (Ctrl+B)"}
+          >
+            {isSidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeft className="w-4 h-4" />}
+          </button>
+        )}
+
         {/* Logo Avatar Upload */}
         <div className="relative group cursor-pointer" onClick={() => studioLogoInputRef?.current?.click()}>
           {studioLogoPhoto ? (
