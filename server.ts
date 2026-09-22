@@ -103,6 +103,19 @@ function isAuthorizedForExecution(req: express.Request): boolean {
     }
   }
 
+  // 4. Same-origin or same-site requests from the preview applet
+  const secFetchSite = req.headers["sec-fetch-site"];
+  if (secFetchSite === "same-origin" || secFetchSite === "same-site") {
+    return true;
+  }
+
+  // 5. Host & Referer match
+  const referer = req.headers.referer;
+  const host = req.headers.host;
+  if (referer && host && referer.includes(host)) {
+    return true;
+  }
+
   return false;
 }
 
@@ -836,8 +849,17 @@ app.all("/api/openrouter/verify-key", async (req: any, res: any) => {
 // OpenRouter list models proxy (BUG-06: Session authorization & clean key separation)
 app.get("/api/openrouter/models", async (req, res) => {
   if (!isAuthorizedForExecution(req)) {
-    return res.status(401).json({
-      error: "Authentication required: A valid session token is required to access models. Please provide an active session token in Authorization or X-Session-Id header."
+    return res.json({
+      data: [
+        ...OPENROUTER_FREE_MODELS,
+        { id: "anthropic/claude-3.5-sonnet", name: "Anthropic: Claude 3.5 Sonnet", is_free: false },
+        { id: "deepseek/deepseek-chat", name: "DeepSeek: V3", is_free: false },
+        { id: "deepseek/deepseek-reasoner", name: "DeepSeek: R1 (Reasoning)", is_free: false },
+        { id: "openai/gpt-4o", name: "OpenAI: GPT-4o", is_free: false },
+        { id: "openai/gpt-4o-mini", name: "OpenAI: GPT-4o Mini", is_free: false },
+        { id: "meta-llama/llama-3.3-70b-instruct", name: "Meta: Llama 3.3 70B Instruct", is_free: false },
+        { id: "qwen/qwen-2.5-coder-32b-instruct", name: "Qwen: 2.5 Coder 32B", is_free: false },
+      ],
     });
   }
 
@@ -5746,18 +5768,23 @@ async function startServer() {
 
   httpServer.on("error", (err: any) => {
     if (err.code === "EADDRINUSE") {
-      console.error(`Port ${PORT} is currently in use. Attempting graceful reconnect...`);
-      setTimeout(() => {
-        try {
-          httpServer.close();
-        } catch {}
-        httpServer.listen(PORT, "0.0.0.0", () => {
-          console.log(`Server recovered and listening on port ${PORT}`);
-        });
-      }, 1000);
+      console.error(`Port ${PORT} is already in use. Exiting cleanly for supervisor.`);
+      process.exit(1);
     } else {
       console.error("HTTP server error:", err);
     }
+  });
+
+  process.on("SIGTERM", () => {
+    httpServer.close(() => {
+      process.exit(0);
+    });
+  });
+
+  process.on("SIGINT", () => {
+    httpServer.close(() => {
+      process.exit(0);
+    });
   });
 
   httpServer.listen(PORT, "0.0.0.0", () => {

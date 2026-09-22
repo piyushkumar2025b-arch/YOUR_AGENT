@@ -245,19 +245,35 @@ export function getSecurityProtectionStatus(): SecurityProtectionOptions {
 export function setupWebsiteSecurityListeners(onWarning?: (msg: string) => void): () => void {
   if (typeof window === "undefined") return () => {};
 
-  // 1. Right Click / Context Menu Guard
+  // 1. Right Click / Context Menu Guard (allows text inputs, code editor, and textareas)
   const handleContextMenu = (e: MouseEvent) => {
-    if (securityOptions.disableRightClick) {
-      e.preventDefault();
-      e.stopPropagation();
-      const warningMsg = "🔒 System Security Shield: Right-click context menu is strictly disabled for application safety.";
-      if (onWarning) onWarning(warningMsg);
-      if (securityOptions.onWarningTriggered) securityOptions.onWarningTriggered(warningMsg);
-      return false;
+    if (!securityOptions.disableRightClick) return;
+
+    // Never block right click inside inputs, textareas, or code editor elements
+    const target = e.target as HTMLElement | null;
+    if (
+      target &&
+      (target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable ||
+        target.closest("textarea") ||
+        target.closest("pre") ||
+        target.closest("code") ||
+        target.closest(".monaco-editor"))
+    ) {
+      return;
     }
+
+    e.preventDefault();
+    e.stopPropagation();
+    const warningMsg = "🔒 System Security Shield: Context menu is disabled.";
+    if (onWarning) onWarning(warningMsg);
+    if (securityOptions.onWarningTriggered) securityOptions.onWarningTriggered(warningMsg);
+    return false;
   };
 
-  // 2. DevTools Shortcuts Guard (F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C, Ctrl+U, Ctrl+S)
+  // 2. DevTools Shortcuts Guard (F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C, Ctrl+U)
+  // Note: NEVER intercept Ctrl+S/Cmd+S as that is required for standard code editor file saving!
   const handleKeyDown = (e: KeyboardEvent) => {
     if (!securityOptions.disableDevToolsShortcuts) return;
 
@@ -276,10 +292,8 @@ export function setupWebsiteSecurityListeners(onWarning?: (msg: string) => void)
     const isElementSelect = (ctrlOrCmd && shift && (key === "C" || key === "c")) || (ctrlOrCmd && alt && (key === "C" || key === "c"));
     // Ctrl+U / Cmd+Option+U
     const isViewSource = ctrlOrCmd && (key === "U" || key === "u");
-    // Ctrl+S / Cmd+S
-    const isSavePage = ctrlOrCmd && (key === "S" || key === "s");
 
-    if (isF12 || isInspect || isConsole || isElementSelect || isViewSource || isSavePage) {
+    if (isF12 || isInspect || isConsole || isElementSelect || isViewSource) {
       e.preventDefault();
       e.stopPropagation();
       const warningMsg = "🛡️ Security Shield Intercepted Developer Inspection Shortcut.";

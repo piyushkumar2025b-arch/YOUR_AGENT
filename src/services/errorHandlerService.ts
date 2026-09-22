@@ -32,13 +32,16 @@ class ErrorHandlerService {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          // Filter out any stale/persisted abort errors from previous sessions
+          // Filter out any stale/persisted abort errors and security notices from previous sessions
           this.errors = parsed.filter(e => {
             const m = (e.message || "").toLowerCase();
             return !(
               m.includes("abort") ||
               m.includes("signal is aborted") ||
-              m.includes("the user aborted a request")
+              m.includes("the user aborted a request") ||
+              m.includes("security shield") ||
+              m.includes("right-click") ||
+              m.includes("context menu")
             );
           });
         }

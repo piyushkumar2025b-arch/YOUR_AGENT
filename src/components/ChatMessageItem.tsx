@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import { motion } from "motion/react";
+import { Copy, Check } from "lucide-react";
 import { Message } from "../types";
 import { ThinkingPlanCard } from "./ThinkingPlanCard";
 
@@ -12,6 +13,14 @@ interface ChatMessageItemProps {
 
 export const ChatMessageItem: React.FC<ChatMessageItemProps> = React.memo(
   ({ msg, theme, isDark, onOpenPreview }) => {
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = () => {
+      const cleanContent = msg.content.replace(/<thinking_plan>[\s\S]*?<\/thinking_plan>/gi, "").trim();
+      navigator.clipboard.writeText(cleanContent);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    };
     return (
       <motion.div
         key={msg.id}
@@ -84,48 +93,36 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = React.memo(
 
           {msg.role === "assistant" && !msg.id.includes("error") && (
             <div
-              className={`mt-3 pt-2.5 border-t flex flex-wrap items-center gap-1.5 text-[10px] font-mono ${
+              className={`mt-2 pt-2 border-t flex items-center justify-between text-[11px] font-mono ${
                 isDark
                   ? "border-zinc-800/80 text-zinc-400"
                   : "border-slate-200 text-slate-500"
               }`}
             >
-              <span
-                className="flex items-center gap-1 text-emerald-500 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20"
-                title="Total response output duration"
-              >
-                ⏱️ Output Time: {msg.stats ? `${msg.stats.durationSeconds}s` : "1.42s"}
+              <span className="text-[10px] text-zinc-500">
+                {msg.stats ? `${msg.stats.durationSeconds}s` : ""}
               </span>
-              <span
-                className="flex items-center gap-1 text-indigo-400 font-medium bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20"
-                title="High Token Capacity Window (65,536 limit)"
+              <button
+                onClick={handleCopy}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer ${
+                  isDark
+                    ? "hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+                    : "hover:bg-slate-100 text-slate-500 hover:text-slate-800"
+                }`}
+                title="Copy message content"
               >
-                ⚡{" "}
-                {msg.stats
-                  ? `${msg.stats.tokensEstimated.toLocaleString()} tokens`
-                  : `${Math.max(
-                      150,
-                      Math.ceil((msg.content || "").length / 3.8)
-                    ).toLocaleString()} tokens`}{" "}
-                <span className="text-[9px] text-indigo-300/70">(Limit: 65,536)</span>
-              </span>
-              <span
-                className="flex items-center gap-1 text-blue-400 font-medium bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20"
-                title="Token Generation Speed"
-              >
-                🚀{" "}
-                {msg.stats
-                  ? `${msg.stats.tokensPerSec} t/s`
-                  : `${Math.round(
-                      Math.ceil((msg.content || "").length / 3.8) / 1.4
-                    )} t/s`}
-              </span>
-              <span
-                className="flex items-center gap-1 text-purple-400 font-medium bg-purple-500/10 px-2 py-0.5 rounded-md border border-purple-500/20"
-                title="Token Compression Savings"
-              >
-                📦 88% Zipped Memory
-              </span>
+                {copied ? (
+                  <>
+                    <Check className="w-3 h-3 text-emerald-400" />
+                    <span className="text-emerald-400 font-semibold">Copied</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3 h-3" />
+                    <span>Copy</span>
+                  </>
+                )}
+              </button>
             </div>
           )}
         </div>

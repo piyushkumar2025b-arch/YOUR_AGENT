@@ -1,4 +1,4 @@
-import React, { memo, useRef, useEffect } from "react";
+import React, { memo, useRef, useEffect, useState } from "react";
 import {
   Code2,
   Globe,
@@ -43,8 +43,9 @@ import {
   Wind,
   Settings,
   Sparkles,
-  ChevronLeft,
-  ChevronRight
+  ChevronDown,
+  LayoutGrid,
+  X
 } from "lucide-react";
 
 export interface TabItem {
@@ -109,6 +110,8 @@ export const WORKSPACE_TABS: TabItem[] = [
   { id: "settings", label: "Settings", icon: Settings }
 ];
 
+const CORE_TAB_IDS = ["editor", "preview", "agents", "actions", "github", "firebase", "settings"];
+
 interface WorkspaceTabsBarProps {
   activeTab: string;
   setActiveTab: (tab: any) => void;
@@ -127,66 +130,54 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = memo(({
   onOpenRunnerModal
 }) => {
   const isDark = theme !== "light";
-  const tabsContainerRef = useRef<HTMLDivElement>(null);
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Smooth scroll active tab into view when activeTab changes
+  // Close dropdown on outside click
   useEffect(() => {
-    if (!tabsContainerRef.current) return;
-    const activeBtn = tabsContainerRef.current.querySelector<HTMLElement>('[data-active="true"]');
-    if (activeBtn) {
-      activeBtn.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsMoreOpen(false);
+      }
+    };
+    if (isMoreOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
     }
-  }, [activeTab]);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isMoreOpen]);
 
-  const handleWheel = (e: React.WheelEvent) => {
-    if (tabsContainerRef.current) {
-      tabsContainerRef.current.scrollLeft += e.deltaY;
-    }
-  };
+  const coreTabs = WORKSPACE_TABS.filter(t => CORE_TAB_IDS.includes(t.id));
+  const activeSecondaryTab = !CORE_TAB_IDS.includes(activeTab)
+    ? WORKSPACE_TABS.find(t => t.id === activeTab)
+    : null;
 
-  const scrollTabs = (offset: number) => {
-    if (tabsContainerRef.current) {
-      tabsContainerRef.current.scrollBy({ left: offset, behavior: "smooth" });
-    }
-  };
+  const moreTabs = WORKSPACE_TABS.filter(t => !CORE_TAB_IDS.includes(t.id));
+  const filteredMoreTabs = moreTabs.filter(t =>
+    t.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    t.id.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
-    <div className={`h-10 border-b px-2 flex items-center justify-between shrink-0 z-10 transition-colors w-full ${
+    <div className={`h-10 border-b px-3 flex items-center justify-between shrink-0 z-20 transition-colors w-full relative ${
       isDark ? "border-zinc-800 bg-[#161618] text-white" : "border-slate-200 bg-white text-slate-900"
     }`}>
-      {/* Scroll Left Button */}
-      <button
-        onClick={() => scrollTabs(-240)}
-        className={`p-1 rounded-md text-xs transition-colors shrink-0 cursor-pointer ${
-          isDark ? "hover:bg-zinc-800 text-zinc-400 hover:text-white" : "hover:bg-slate-100 text-slate-500 hover:text-slate-900"
-        }`}
-        title="Scroll tabs left"
-        aria-label="Scroll tabs left"
-      >
-        <ChevronLeft className="w-4 h-4" />
-      </button>
-
-      {/* Scrollable Tabs List */}
-      <div
-        ref={tabsContainerRef}
-        onWheel={handleWheel}
-        className="flex-1 flex items-center gap-1 overflow-x-auto scrollbar-none py-1 mx-1 scroll-smooth"
-      >
-        {WORKSPACE_TABS.map((tab) => {
+      {/* Primary Clean Navigation Tabs */}
+      <div className="flex items-center gap-1 overflow-x-auto scrollbar-none py-1">
+        {coreTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
           return (
             <button
               key={tab.id}
-              data-active={isActive ? "true" : "false"}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium tracking-normal transition-colors cursor-pointer shrink-0 ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium tracking-normal transition-all cursor-pointer shrink-0 ${
                 isActive
                   ? (isDark
-                      ? "bg-zinc-800 text-white font-semibold shadow-xs border border-zinc-700/80"
-                      : "bg-slate-100 text-slate-900 font-semibold shadow-xs border border-slate-300/80")
+                      ? "bg-zinc-800 text-white font-semibold shadow-xs"
+                      : "bg-slate-200/80 text-slate-900 font-semibold shadow-xs")
                   : (isDark
-                      ? "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40"
+                      ? "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50"
                       : "text-slate-600 hover:text-slate-900 hover:bg-slate-100")
               }`}
             >
@@ -200,10 +191,91 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = memo(({
           );
         })}
 
+        {/* Currently active secondary tool tab if one was chosen from More */}
+        {activeSecondaryTab && (
+          <button
+            onClick={() => setActiveTab(activeSecondaryTab.id)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold tracking-normal transition-colors cursor-pointer shrink-0 border ${
+              isDark
+                ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/30"
+                : "bg-indigo-50 text-indigo-700 border-indigo-200"
+            }`}
+          >
+            <activeSecondaryTab.icon className="w-3.5 h-3.5 shrink-0 text-indigo-500" />
+            <span className="whitespace-nowrap">{activeSecondaryTab.label}</span>
+          </button>
+        )}
+
+        {/* More Tools Dropdown Trigger */}
+        <div className="relative" ref={dropdownRef}>
+          <button
+            onClick={() => setIsMoreOpen(!isMoreOpen)}
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+              isMoreOpen || activeSecondaryTab
+                ? (isDark ? "bg-zinc-800 text-zinc-200" : "bg-slate-100 text-slate-900")
+                : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-800/40" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100")
+            }`}
+            title="Explore all tools and agent modules"
+          >
+            <LayoutGrid className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="hidden sm:inline">More Tools</span>
+            <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isMoreOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {/* More Tools Popover Modal */}
+          {isMoreOpen && (
+            <div className={`absolute top-full left-0 mt-1.5 w-80 rounded-xl shadow-2xl border p-2 z-50 animate-in fade-in-50 zoom-in-95 ${
+              isDark ? "bg-[#18181b] border-zinc-800 text-zinc-100" : "bg-white border-slate-200 text-slate-900"
+            }`}>
+              <div className="relative mb-2">
+                <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-2.5" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Filter 40+ tools & agents..."
+                  className={`w-full text-xs pl-8 pr-3 py-1.5 rounded-lg border focus:outline-none ${
+                    isDark ? "bg-zinc-900 border-zinc-800 text-zinc-200 placeholder-zinc-500" : "bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400"
+                  }`}
+                  autoFocus
+                />
+              </div>
+
+              <div className="max-h-72 overflow-y-auto space-y-0.5 pr-1">
+                {filteredMoreTabs.length === 0 ? (
+                  <p className="text-xs text-zinc-500 text-center py-4">No matching tools found</p>
+                ) : (
+                  filteredMoreTabs.map(tab => {
+                    const TabIcon = tab.icon;
+                    const isActive = activeTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => {
+                          setActiveTab(tab.id);
+                          setIsMoreOpen(false);
+                        }}
+                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer ${
+                          isActive
+                            ? (isDark ? "bg-indigo-600 text-white font-semibold" : "bg-indigo-600 text-white font-semibold")
+                            : (isDark ? "hover:bg-zinc-800 text-zinc-300" : "hover:bg-slate-100 text-slate-700")
+                        }`}
+                      >
+                        <TabIcon className="w-3.5 h-3.5 shrink-0 opacity-80" />
+                        <span className="truncate">{tab.label}</span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Runner Launcher Modal Button */}
         <button
           onClick={onOpenRunnerModal}
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer shrink-0 ${
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0 ${
             isDark
               ? "text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 border border-cyan-500/20"
               : "text-cyan-700 hover:text-cyan-800 hover:bg-cyan-50 border border-cyan-200"
@@ -211,27 +283,20 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = memo(({
           title="Run Modules & Compilers"
         >
           <Cpu className="w-3.5 h-3.5 shrink-0 text-cyan-400" />
-          <span className="whitespace-nowrap">Run Modules</span>
+          <span className="whitespace-nowrap hidden sm:inline">Run Modules</span>
         </button>
       </div>
 
-      {/* Scroll Right Button */}
-      <button
-        onClick={() => scrollTabs(240)}
-        className={`p-1 rounded-md text-xs transition-colors shrink-0 cursor-pointer ${
-          isDark ? "hover:bg-zinc-800 text-zinc-400 hover:text-white" : "hover:bg-slate-100 text-slate-500 hover:text-slate-900"
-        }`}
-        title="Scroll tabs right"
-        aria-label="Scroll tabs right"
-      >
-        <ChevronRight className="w-4 h-4" />
-      </button>
-
       {/* Quick stats counter */}
-      <div className={`text-[10px] font-mono shrink-0 pl-2 hidden md:block ${
-        isDark ? "text-zinc-500" : "text-slate-400"
+      <div className={`text-[11px] font-mono shrink-0 pl-2 hidden md:flex items-center gap-2 ${
+        isDark ? "text-zinc-400" : "text-slate-500"
       }`}>
-        Files: {filesCount} • Actions: {agentActionsCount}
+        <span className="flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+          <span>{filesCount} Files</span>
+        </span>
+        <span>•</span>
+        <span>{agentActionsCount} Logs</span>
       </div>
     </div>
   );

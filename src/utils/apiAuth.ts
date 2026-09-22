@@ -106,3 +106,8 @@ export async function fetchWithAuth(
   }
 }
 
+export function installGlobalFetchInterceptor(): void {
+  // Trigger background token acquisition immediately without mutating window.fetch
+  ensureSessionToken().catch(() => {});
+}
+

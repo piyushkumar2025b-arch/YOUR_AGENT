@@ -249,19 +249,6 @@ export default function App() {
     ensureSessionToken().catch(() => {});
   }, []);
 
-  // Disable right clicks, developer tools inspection shortcuts, and image dragging across the app
-  useEffect(() => {
-    const cleanup = setupWebsiteSecurityListeners((warningMsg) => {
-      errorHandler.logError({
-        message: warningMsg,
-        category: "System",
-        severity: "info",
-        source: "SecurityShieldGuard"
-      });
-    });
-    return cleanup;
-  }, []);
-
   // Free Model Photo Generator States
   const [photoPrompt, setPhotoPrompt] = useState<string>("");
   const [photoModel, setPhotoModel] = useState<string>("flux");
@@ -581,7 +568,7 @@ export default function App() {
   // Website Security & Right-Click Protection State
   const [disableRightClick, setDisableRightClick] = useState<boolean>(() => {
     const saved = localStorage.getItem("security_disable_right_click");
-    return saved !== null ? saved === "true" : true;
+    return saved === "true";
   });
   const [rightClickToast, setRightClickToast] = useState<boolean>(false);
 

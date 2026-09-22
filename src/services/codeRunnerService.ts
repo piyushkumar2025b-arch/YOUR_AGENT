@@ -1,3 +1,5 @@
+import { fetchWithAuth } from "../utils/apiAuth";
+
 export interface CodeExecutionRequest {
   filePath: string;
   code: string;
@@ -146,22 +148,22 @@ ${req.code}
 \`\`\``;
 
   try {
-    const aiRes = await fetch("/api/openrouter/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": req.apiKey ? `Bearer ${req.apiKey}` : ""
+    const aiRes = await fetchWithAuth(
+      "/api/openrouter/chat",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          model: chosenModel,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+          ],
+          temperature: 0.1,
+          max_tokens: 4096
+        })
       },
-      body: JSON.stringify({
-        model: chosenModel,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ],
-        temperature: 0.1,
-        max_tokens: 4096
-      })
-    });
+      req.apiKey
+    );
 
     const endTime = performance.now();
     const duration = Math.round(endTime - startTime);

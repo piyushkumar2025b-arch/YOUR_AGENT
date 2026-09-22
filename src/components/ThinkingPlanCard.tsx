@@ -8,7 +8,7 @@ interface ThinkingPlanCardProps {
 }
 
 export const ThinkingPlanCard: React.FC<ThinkingPlanCardProps> = ({ content = "", theme, onOpenPreview }) => {
-  const [isExpanded, setIsExpanded] = useState<boolean>(true);
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
 
   if (!content) return null;
 

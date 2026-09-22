@@ -261,27 +261,24 @@ export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = ({
       {activeFile ? (
         <>
           {/* Editor header panel */}
-          <div className="h-10 px-4 border-b border-white/5 flex items-center justify-between bg-[#252526] select-none shrink-0 overflow-x-auto">
-            <div className="flex items-center gap-3 shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-white/40 font-medium hidden sm:inline">Active File:</span>
-                <span className="text-xs font-mono text-white bg-indigo-500/20 px-2.5 py-0.5 rounded border border-indigo-500/30 flex items-center gap-1.5">
-                  {activeBadge && (
-                    <span className={`px-1 py-0.2 text-[8px] font-extrabold rounded border ${activeBadge.colorClass} uppercase`}>
-                      {activeBadge.badge}
-                    </span>
-                  )}
-                  {activeFile.path}
-                </span>
+          <div className="h-10 px-3 border-b border-white/5 flex items-center justify-between bg-[#1e1e1e] select-none shrink-0 overflow-x-auto text-xs">
+            <div className="flex items-center gap-2.5 shrink-0">
+              <div className="flex items-center gap-1.5 font-mono text-white/90">
+                <FileCode className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                <span className="font-semibold text-xs tracking-tight">{activeFile.path}</span>
+                {activeBadge && (
+                  <span className={`px-1 text-[8px] font-extrabold rounded ${activeBadge.colorClass} uppercase`}>
+                    {activeBadge.badge}
+                  </span>
+                )}
               </div>
 
               {/* Language Syntax Selector */}
-              <div className="flex items-center gap-1 bg-[#1e1e1e] border border-white/10 rounded px-2 py-0.5 text-[10px]">
-                <span className="text-white/40">Syntax:</span>
+              <div className="flex items-center text-[11px] text-white/60">
                 <select
                   value={activeFile.language}
                   onChange={(e) => handleLanguageChange(e.target.value)}
-                  className="bg-transparent text-emerald-400 font-mono focus:outline-none cursor-pointer"
+                  className="bg-transparent text-emerald-400 font-mono focus:outline-none cursor-pointer hover:text-emerald-300 transition-colors"
                 >
                   <option value="c" className="bg-[#1e1e1e] text-white">C (.c)</option>
                   <option value="cpp" className="bg-[#1e1e1e] text-white">C++ (.cpp)</option>
@@ -302,7 +299,7 @@ export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = ({
               </div>
 
               {/* Quick Actions for active file */}
-              <div className="flex items-center gap-1 border-l border-white/10 pl-2">
+              <div className="flex items-center gap-0.5 border-l border-white/10 pl-2">
                 <button
                   onClick={() => {
                     setRenamingPath({ type: "file", path: activeFile.path });
@@ -326,7 +323,7 @@ export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = ({
               <div className="flex items-center gap-1.5 border-l border-white/10 pl-2">
                 <button
                   onClick={() => setIsCodeRunnerOpen(true)}
-                  className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded text-xs transition-colors active:scale-[0.98] cursor-pointer"
+                  className="flex items-center gap-1 px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded text-xs transition-colors cursor-pointer"
                   title="Run file via OpenRouter AI Compiler Engine & See Output"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-300" />
@@ -335,7 +332,7 @@ export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = ({
                 <button
                   onClick={() => handleRunActiveFile()}
                   disabled={isTerminalRunning}
-                  className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-700 text-white font-medium rounded text-xs transition-colors active:scale-[0.98] cursor-pointer"
+                  className="flex items-center gap-1 px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-700 text-white font-medium rounded text-xs transition-colors cursor-pointer"
                   title="Execute and check working of this code"
                 >
                   <Play className="w-3.5 h-3.5 text-white" />
@@ -343,7 +340,7 @@ export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = ({
                 </button>
                 <button
                   onClick={() => setShowTerminal(!showTerminal)}
-                  className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors cursor-pointer ${
                     showTerminal
                       ? "bg-white/15 text-white"
                       : "text-zinc-400 hover:text-white hover:bg-white/5"
@@ -356,7 +353,7 @@ export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = ({
 
                 <button
                   onClick={() => setShowCodeMap(!showCodeMap)}
-                  className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors cursor-pointer ${
                     showCodeMap
                       ? "bg-indigo-600/80 text-white"
                       : "text-zinc-400 hover:text-white hover:bg-white/5"
@@ -364,25 +361,25 @@ export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = ({
                   title="Toggle Code Map Minimap Visualizer Sidebar"
                 >
                   <Compass className="w-3.5 h-3.5 text-indigo-300" />
-                  <span>Code Map</span>
+                  <span className="hidden sm:inline">Map</span>
                 </button>
               </div>
             </div>
 
             {/* Font size adjustment */}
             <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center gap-1 bg-black/30 px-1.5 py-0.5 rounded border border-white/5 text-[10px] font-mono text-white/60">
-                <span>Size: {editorFontSize}px</span>
+              <div className="flex items-center gap-1 text-[11px] font-mono text-white/50">
+                <span>{editorFontSize}px</span>
                 <button
                   onClick={() => setEditorFontSize(prev => Math.max(10, prev - 1))}
-                  className="hover:text-white px-1"
+                  className="hover:text-white px-1 hover:bg-white/5 rounded"
                   title="Decrease font size"
                 >
                   -
                 </button>
                 <button
                   onClick={() => setEditorFontSize(prev => Math.min(24, prev + 1))}
-                  className="hover:text-white px-1"
+                  className="hover:text-white px-1 hover:bg-white/5 rounded"
                   title="Increase font size"
                 >
                   +
