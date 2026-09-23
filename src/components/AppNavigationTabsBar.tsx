@@ -54,7 +54,8 @@ import {
   Newspaper,
   ShieldCheck,
   Regex as RegexIcon,
-  GitCompare
+  GitCompare,
+  Server
 } from "lucide-react";
 
 interface AppNavigationTabsBarProps {
@@ -604,6 +605,28 @@ export const AppNavigationTabsBar: React.FC<AppNavigationTabsBarProps> = ({
         >
           <Database className="w-3.5 h-3.5 text-teal-400" />
           SQL Studio
+        </button>
+        <button
+          onClick={() => setActiveTab("mock-server")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "mock-server"
+              ? (isDark ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold" : "bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50" : "text-slate-500 hover:text-emerald-600 hover:bg-emerald-50")
+          }`}
+        >
+          <Server className="w-3.5 h-3.5 text-emerald-400" />
+          Mock & Webhooks
+        </button>
+        <button
+          onClick={() => setActiveTab("perf-auditor")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "perf-auditor"
+              ? (isDark ? "bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold" : "bg-rose-100 text-rose-900 border border-rose-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50" : "text-slate-500 hover:text-rose-600 hover:bg-rose-50")
+          }`}
+        >
+          <Activity className="w-3.5 h-3.5 text-rose-400" />
+          Perf & Health Auditor
         </button>
         <button
           onClick={() => setActiveTab("settings")}

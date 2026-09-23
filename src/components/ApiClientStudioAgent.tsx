@@ -23,6 +23,7 @@ import {
   Sliders,
   Sparkles
 } from "lucide-react";
+import { fetchWithAuth } from "../utils/apiAuth";
 
 interface ApiClientStudioAgentProps {
   apiKey?: string;
@@ -267,16 +268,20 @@ export const ApiClientStudioAgent: React.FC<ApiClientStudioAgentProps> = ({
     }
 
     try {
-      const res = await fetch("/api/http-client/execute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: url.trim(),
-          method,
-          headers: compiledHeaders,
-          body: parsedBody
-        })
-      });
+      const res = await fetchWithAuth(
+        "/api/http-client/execute",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: url.trim(),
+            method,
+            headers: compiledHeaders,
+            body: parsedBody
+          })
+        },
+        apiKey
+      );
 
       const result = await res.json();
 

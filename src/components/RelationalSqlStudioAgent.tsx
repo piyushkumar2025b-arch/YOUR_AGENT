@@ -18,6 +18,7 @@ import {
   ChevronRight,
   ChevronDown
 } from "lucide-react";
+import { fetchWithAuth } from "../utils/apiAuth";
 
 interface RelationalSqlStudioAgentProps {
   apiKey?: string;
@@ -405,18 +406,22 @@ YOUR_SQL_QUERY_HERE
 Explanation: One short sentence explaining how it works.`;
 
     try {
-      const res = await fetch("/api/openrouter/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [
-            { role: "system", content: "You generate concise, valid SQL queries matching the provided table schema." },
-            { role: "user", content: promptText }
-          ],
-          model: selectedModel || "google/gemini-2.5-flash",
-          apiKey
-        })
-      });
+      const res = await fetchWithAuth(
+        "/api/openrouter/chat",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: [
+              { role: "system", content: "You generate concise, valid SQL queries matching the provided table schema." },
+              { role: "user", content: promptText }
+            ],
+            model: selectedModel || "google/gemini-2.5-flash",
+            apiKey
+          })
+        },
+        apiKey
+      );
 
       const data = await res.json();
       const reply = data.choices?.[0]?.message?.content || "";

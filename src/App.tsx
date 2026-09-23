@@ -99,6 +99,8 @@ import { AiBrainSidebarPanel } from "./components/AiBrainSidebarPanel";
 import { AppTabViewsRouter } from "./components/AppTabViewsRouter";
 import { AppModalsContainer } from "./components/AppModalsContainer";
 import { FileHistoryTimeMachineModal } from "./components/FileHistoryTimeMachineModal";
+import { EnvSecretsVaultModal } from "./components/EnvSecretsVaultModal";
+import { CodeSnippetsLibraryModal } from "./components/CodeSnippetsLibraryModal";
 import { WorkspaceTabsBar } from "./components/WorkspaceTabsBar";
 import { errorHandler } from "./services/errorHandlerService";
 import { setupWebsiteSecurityListeners } from "./utils/security";
@@ -263,6 +265,8 @@ export default function App() {
   const [isSecurityShieldOpen, setIsSecurityShieldOpen] = useState<boolean>(false);
   const [isErrorLogCenterOpen, setIsErrorLogCenterOpen] = useState<boolean>(false);
   const [isTimeMachineOpen, setIsTimeMachineOpen] = useState<boolean>(false);
+  const [isSecretsVaultOpen, setIsSecretsVaultOpen] = useState<boolean>(false);
+  const [isSnippetsLibraryOpen, setIsSnippetsLibraryOpen] = useState<boolean>(false);
   const [unresolvedErrorCount, setUnresolvedErrorCount] = useState<number>(0);
   const [showCodeMap, setShowCodeMap] = useState<boolean>(true);
 
@@ -3679,6 +3683,8 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
               handleSeek={handleSeek}
               handleSelectTrack={handleSelectTrack}
               onOpenTimeMachine={() => setIsTimeMachineOpen(true)}
+              onOpenSecretsVault={() => setIsSecretsVaultOpen(true)}
+              onOpenSnippets={() => setIsSnippetsLibraryOpen(true)}
             />
           </div>
 
@@ -3799,6 +3805,41 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
         onRestoreSnapshot={(path, content) => {
           handleEditFileContent(content);
           addAgentAction("edit", `Restored snapshot version of ${path}`);
+        }}
+        onAddLog={(type, msg) => addAgentAction(type as any, msg)}
+      />
+
+      {/* ENVIRONMENT SECRETS VAULT MODAL */}
+      <EnvSecretsVaultModal
+        isOpen={isSecretsVaultOpen}
+        onClose={() => setIsSecretsVaultOpen(false)}
+        files={files}
+        theme={theme}
+        onSaveEnvFile={(path, content) => {
+          setFiles(prev => {
+            const exists = prev.some(f => f.path === path);
+            if (exists) {
+              return prev.map(f => f.path === path ? { ...f, content, isUserCreated: true } : f);
+            }
+            return [...prev, { path, content, language: "plaintext", isFolder: false, isUserCreated: true }];
+          });
+          addAgentAction("edit", `Synchronized environment variables in ${path}`);
+        }}
+        onAddLog={(type, msg) => addAgentAction(type as any, msg)}
+      />
+
+      {/* CODE SNIPPETS & COMPONENT LIBRARY MODAL */}
+      <CodeSnippetsLibraryModal
+        isOpen={isSnippetsLibraryOpen}
+        onClose={() => setIsSnippetsLibraryOpen(false)}
+        theme={theme}
+        onInsertCode={(code) => {
+          const activeF = files.find(f => f.path === selectedFilePath);
+          if (activeF) {
+            const updated = (activeF.content || "") + "\n\n" + code;
+            handleEditFileContent(updated);
+            addAgentAction("create", `Inserted snippet into ${selectedFilePath}`);
+          }
         }}
         onAddLog={(type, msg) => addAgentAction(type as any, msg)}
       />

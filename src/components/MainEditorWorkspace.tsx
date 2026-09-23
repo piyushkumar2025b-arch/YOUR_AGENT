@@ -8,7 +8,9 @@ import {
   Compass,
   FileCode,
   Search,
-  History
+  History,
+  KeyRound,
+  Component
 } from "lucide-react";
 import { VirtualFile, BorderSettings } from "../types";
 import { CodeMapMinimap } from "./CodeMapMinimap";
@@ -70,6 +72,8 @@ interface MainEditorWorkspaceProps {
   customCommandInput: string;
   setCustomCommandInput: React.Dispatch<React.SetStateAction<string>>;
   onOpenTimeMachine?: () => void;
+  onOpenSecretsVault?: () => void;
+  onOpenSnippets?: () => void;
 }
 
 export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = memo(({
@@ -124,7 +128,9 @@ export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = memo(({
   setTerminalOutput,
   customCommandInput,
   setCustomCommandInput,
-  onOpenTimeMachine
+  onOpenTimeMachine,
+  onOpenSecretsVault,
+  onOpenSnippets
 }) => {
   // Local immediate content buffer to decouple keystrokes from root App.tsx re-renders
   const [localContent, setLocalContent] = useState<string>(activeFile?.content || "");
@@ -491,6 +497,28 @@ export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = memo(({
                   >
                     <History className="w-3.5 h-3.5 text-amber-400" />
                     <span className="hidden sm:inline">History</span>
+                  </button>
+                )}
+
+                {onOpenSecretsVault && (
+                  <button
+                    onClick={onOpenSecretsVault}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium text-yellow-400/90 hover:text-yellow-300 hover:bg-yellow-500/10 transition-colors cursor-pointer"
+                    title="Environment Variables & Secrets Vault (.env)"
+                  >
+                    <KeyRound className="w-3.5 h-3.5 text-yellow-400" />
+                    <span className="hidden sm:inline">Secrets</span>
+                  </button>
+                )}
+
+                {onOpenSnippets && (
+                  <button
+                    onClick={onOpenSnippets}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium text-indigo-400/90 hover:text-indigo-300 hover:bg-indigo-500/10 transition-colors cursor-pointer"
+                    title="Curated Production Snippets & UI Components"
+                  >
+                    <Component className="w-3.5 h-3.5 text-indigo-400" />
+                    <span className="hidden sm:inline">Snippets</span>
                   </button>
                 )}
               </div>

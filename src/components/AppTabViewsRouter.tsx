@@ -64,6 +64,8 @@ const RegexPlaygroundAgent = safeLazy(() => import("./RegexPlaygroundAgent"), "R
 const CodeDiffInspectorModal = safeLazy(() => import("./CodeDiffInspectorModal"), "CodeDiffInspectorModal");
 const ApiClientStudioAgent = safeLazy(() => import("./ApiClientStudioAgent"), "ApiClientStudioAgent");
 const RelationalSqlStudioAgent = safeLazy(() => import("./RelationalSqlStudioAgent"), "RelationalSqlStudioAgent");
+const MockServerWebhookAgent = safeLazy(() => import("./MockServerWebhookAgent"), "MockServerWebhookAgent");
+const CodePerformanceAuditAgent = safeLazy(() => import("./CodePerformanceAuditAgent"), "CodePerformanceAuditAgent");
 
 interface AppTabViewsRouterProps {
   activeTab: string;
@@ -172,6 +174,8 @@ interface AppTabViewsRouterProps {
   handleSeek?: (time: number) => void;
   handleSelectTrack?: (idx: number) => void;
   onOpenTimeMachine?: () => void;
+  onOpenSecretsVault?: () => void;
+  onOpenSnippets?: () => void;
 }
 
 export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = React.memo(({
@@ -280,7 +284,9 @@ export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = React.memo(({
   handlePrevTrack,
   handleSeek,
   handleSelectTrack,
-  onOpenTimeMachine
+  onOpenTimeMachine,
+  onOpenSecretsVault,
+  onOpenSnippets
 }) => {
   const activeFile = files.find(f => f.path === selectedFilePath);
   const activeBadge = activeFile ? getFileBadgeAndIcon(activeFile.path) : null;
@@ -376,6 +382,8 @@ export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = React.memo(({
             customCommandInput={customCommandInput}
             setCustomCommandInput={setCustomCommandInput}
             onOpenTimeMachine={onOpenTimeMachine}
+            onOpenSecretsVault={onOpenSecretsVault}
+            onOpenSnippets={onOpenSnippets}
           />
         </div>
       )}
@@ -1123,6 +1131,32 @@ export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = React.memo(({
             selectedModel={selectedModel}
             theme={theme}
             onAddLog={(type, msg) => addAgentAction(type as any, msg)}
+          />
+        </div>
+      )}
+
+      {/* VIEW: MOCK API SERVER & LIVE WEBHOOK INSPECTOR */}
+      {activeTab === "mock-server" && (
+        <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <MockServerWebhookAgent
+            apiKey={apiKey}
+            theme={theme}
+            onAddLog={(type, msg) => addAgentAction(type as any, msg)}
+          />
+        </div>
+      )}
+
+      {/* VIEW: LIGHTHOUSE-STYLE CODE HEALTH & PERFORMANCE AUDITOR */}
+      {activeTab === "perf-auditor" && (
+        <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <CodePerformanceAuditAgent
+            files={files as any}
+            theme={theme}
+            onAddLog={(type, msg) => addAgentAction(type as any, msg)}
+            onNavigateToFile={(path) => {
+              setSelectedFilePath(path);
+              setActiveTab("editor");
+            }}
           />
         </div>
       )}

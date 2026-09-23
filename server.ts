@@ -4442,6 +4442,26 @@ app.post("/api/http-client/execute", async (req, res: any) => {
     return res.status(400).json({ error: `Method '${upperMethod}' is not permitted.` });
   }
 
+  // Filter incoming headers
+  const sanitizedHeaders: Record<string, string> = {
+    "User-Agent": "RemixStudio-RESTClient/1.0",
+    Accept: "*/*"
+  };
+
+  if (headers && typeof headers === "object") {
+    for (const [k, v] of Object.entries(headers)) {
+      const lowerK = k.toLowerCase().trim();
+      if (
+        lowerK !== "host" &&
+        lowerK !== "content-length" &&
+        lowerK !== "transfer-encoding" &&
+        typeof v === "string"
+      ) {
+        sanitizedHeaders[k.trim()] = v.trim();
+      }
+    }
+  }
+
   try {
     const trimmedUrl = url.trim();
     const isLocalApi = trimmedUrl.startsWith("/");
@@ -4449,6 +4469,12 @@ app.post("/api/http-client/execute", async (req, res: any) => {
 
     if (isLocalApi) {
       targetUrlString = `http://127.0.0.1:3000${trimmedUrl}`;
+      if (req.headers.authorization && !sanitizedHeaders["Authorization"]) {
+        sanitizedHeaders["Authorization"] = req.headers.authorization;
+      }
+      if (req.headers["x-session-id"] && !sanitizedHeaders["X-Session-Id"]) {
+        sanitizedHeaders["X-Session-Id"] = req.headers["x-session-id"] as string;
+      }
     } else {
       let parsedUrl: URL;
       try {
@@ -4461,29 +4487,23 @@ app.post("/api/http-client/execute", async (req, res: any) => {
         return res.status(400).json({ error: "Only HTTP and HTTPS protocols are permitted." });
       }
 
-      // Check against SSRF
-      const safetyCheck = await isSafeDestination(parsedUrl.hostname);
-      if (!safetyCheck.safe) {
-        return res.status(403).json({ error: safetyCheck.reason || "Access to private or restricted network addresses is forbidden." });
-      }
-    }
+      const isLoopbackSelf =
+        (parsedUrl.hostname === "localhost" || parsedUrl.hostname === "127.0.0.1") &&
+        (parsedUrl.port === "3000" || parsedUrl.port === "") &&
+        parsedUrl.pathname.startsWith("/api/");
 
-    // Filter incoming headers
-    const sanitizedHeaders: Record<string, string> = {
-      "User-Agent": "RemixStudio-RESTClient/1.0",
-      Accept: "*/*"
-    };
-
-    if (headers && typeof headers === "object") {
-      for (const [k, v] of Object.entries(headers)) {
-        const lowerK = k.toLowerCase().trim();
-        if (
-          lowerK !== "host" &&
-          lowerK !== "content-length" &&
-          lowerK !== "transfer-encoding" &&
-          typeof v === "string"
-        ) {
-          sanitizedHeaders[k.trim()] = v.trim();
+      if (isLoopbackSelf) {
+        if (req.headers.authorization && !sanitizedHeaders["Authorization"]) {
+          sanitizedHeaders["Authorization"] = req.headers.authorization;
+        }
+        if (req.headers["x-session-id"] && !sanitizedHeaders["X-Session-Id"]) {
+          sanitizedHeaders["X-Session-Id"] = req.headers["x-session-id"] as string;
+        }
+      } else {
+        // Check against SSRF
+        const safetyCheck = await isSafeDestination(parsedUrl.hostname);
+        if (!safetyCheck.safe) {
+          return res.status(403).json({ error: safetyCheck.reason || "Access to private or restricted network addresses is forbidden." });
         }
       }
     }
@@ -4549,6 +4569,212 @@ app.post("/api/http-client/execute", async (req, res: any) => {
       data: null
     });
   }
+});
+
+// ==========================================
+// MOCK API SERVER & LIVE WEBHOOK INSPECTOR
+// ==========================================
+interface MockEndpointConfig {
+  id: string;
+  path: string;
+  method: string;
+  statusCode: number;
+  delayMs: number;
+  headers: Record<string, string>;
+  responseBody: any;
+  enabled: boolean;
+  createdAt: number;
+}
+
+interface WebhookLogEntry {
+  id: string;
+  timestamp: string;
+  method: string;
+  path: string;
+  ip: string;
+  headers: Record<string, string>;
+  query: Record<string, any>;
+  body: any;
+}
+
+let mockEndpointsStore: MockEndpointConfig[] = [
+  {
+    id: "mock-users",
+    path: "/users",
+    method: "GET",
+    statusCode: 200,
+    delayMs: 120,
+    headers: { "Content-Type": "application/json" },
+    responseBody: [
+      { id: 1, name: "Alice Developer", role: "Fullstack Architect", email: "alice@example.com", status: "active" },
+      { id: 2, name: "Bob Martinez", role: "DevOps Engineer", email: "bob@example.com", status: "active" },
+      { id: 3, name: "Chloe Zhao", role: "Frontend Specialist", email: "chloe@example.com", status: "offline" }
+    ],
+    enabled: true,
+    createdAt: Date.now() - 3600000
+  },
+  {
+    id: "mock-auth-login",
+    path: "/auth/login",
+    method: "POST",
+    statusCode: 200,
+    delayMs: 250,
+    headers: { "Content-Type": "application/json" },
+    responseBody: {
+      token: "mock_jwt_token_eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+      expiresIn: 86400,
+      user: { id: "usr_9981", email: "dev@remixstudio.ai", permissions: ["admin", "editor"] }
+    },
+    enabled: true,
+    createdAt: Date.now() - 3000000
+  },
+  {
+    id: "mock-orders",
+    path: "/orders",
+    method: "GET",
+    statusCode: 200,
+    delayMs: 80,
+    headers: { "Content-Type": "application/json" },
+    responseBody: {
+      orders: [
+        { id: "ORD-101", product: "Cloud Server Node (4 vCPU)", amount: 48.0, currency: "USD", status: "fulfilled" },
+        { id: "ORD-102", product: "PostgreSQL Replica 50GB", amount: 25.0, currency: "USD", status: "processing" }
+      ],
+      totalCount: 2
+    },
+    enabled: true,
+    createdAt: Date.now() - 2000000
+  }
+];
+
+let webhookLogsStore: WebhookLogEntry[] = [];
+
+// List all mock endpoints
+app.get("/api/mock-server/endpoints", (req, res) => {
+  return res.json({ endpoints: mockEndpointsStore });
+});
+
+// Create or update mock endpoint
+app.post("/api/mock-server/endpoints", (req, res) => {
+  const { id, path, method = "GET", statusCode = 200, delayMs = 0, headers = {}, responseBody, enabled = true } = req.body || {};
+  if (!path || typeof path !== "string") {
+    return res.status(400).json({ error: "Missing or invalid 'path' parameter." });
+  }
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const endpointId = id || `mock_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+  const existingIdx = mockEndpointsStore.findIndex(e => e.id === endpointId);
+  const updatedEndpoint: MockEndpointConfig = {
+    id: endpointId,
+    path: normalizedPath,
+    method: String(method).toUpperCase(),
+    statusCode: Number(statusCode) || 200,
+    delayMs: Math.min(Math.max(Number(delayMs) || 0, 0), 10000),
+    headers: typeof headers === "object" ? headers : { "Content-Type": "application/json" },
+    responseBody: responseBody !== undefined ? responseBody : { success: true },
+    enabled: Boolean(enabled),
+    createdAt: existingIdx >= 0 ? mockEndpointsStore[existingIdx].createdAt : Date.now()
+  };
+
+  if (existingIdx >= 0) {
+    mockEndpointsStore[existingIdx] = updatedEndpoint;
+  } else {
+    mockEndpointsStore.push(updatedEndpoint);
+  }
+
+  return res.json({ success: true, endpoint: updatedEndpoint });
+});
+
+// Delete mock endpoint
+app.delete("/api/mock-server/endpoints/:id", (req, res) => {
+  const { id } = req.params;
+  const initialLength = mockEndpointsStore.length;
+  mockEndpointsStore = mockEndpointsStore.filter(e => e.id !== id);
+  return res.json({ success: true, deleted: mockEndpointsStore.length < initialLength });
+});
+
+// Call / simulate mock endpoint
+app.all(/^\/api\/mock-server\/call(?:\/(.*))?$/, async (req: express.Request, res: express.Response) => {
+  const subPath = req.params[0] ? `/${req.params[0]}` : "/";
+  const incomingMethod = req.method.toUpperCase();
+
+  const matched = mockEndpointsStore.find(e => {
+    if (!e.enabled) return false;
+    const pathMatch = e.path.toLowerCase() === subPath.toLowerCase();
+    const methodMatch = e.method === "ANY" || e.method === incomingMethod;
+    return pathMatch && methodMatch;
+  });
+
+  if (!matched) {
+    return res.status(404).json({
+      error: "Mock endpoint not found or disabled.",
+      requestedPath: subPath,
+      requestedMethod: incomingMethod,
+      availableEndpoints: mockEndpointsStore.filter(e => e.enabled).map(e => ({
+        path: `/api/mock-server/call${e.path}`,
+        method: e.method,
+        statusCode: e.statusCode
+      }))
+    });
+  }
+
+  // Artificial latency simulation
+  if (matched.delayMs > 0) {
+    await new Promise(resolve => setTimeout(resolve, matched.delayMs));
+  }
+
+  // Custom response headers
+  if (matched.headers && typeof matched.headers === "object") {
+    for (const [k, v] of Object.entries(matched.headers)) {
+      if (typeof v === "string") {
+        res.setHeader(k, v);
+      }
+    }
+  }
+
+  res.status(matched.statusCode);
+  if (typeof matched.responseBody === "string") {
+    return res.send(matched.responseBody);
+  }
+  return res.json(matched.responseBody);
+});
+
+// Capture incoming webhook
+app.all(/^\/api\/mock-server\/webhook(?:\/.*)?$/, (req: express.Request, res: express.Response) => {
+  const logEntry: WebhookLogEntry = {
+    id: `wh_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    timestamp: new Date().toISOString(),
+    method: req.method,
+    path: req.originalUrl,
+    ip: (req.headers["x-forwarded-for"] as string) || req.ip || "127.0.0.1",
+    headers: req.headers as Record<string, string>,
+    query: req.query as Record<string, any>,
+    body: req.body
+  };
+
+  webhookLogsStore.unshift(logEntry);
+  if (webhookLogsStore.length > 80) {
+    webhookLogsStore.pop();
+  }
+
+  return res.json({
+    success: true,
+    message: "Webhook payload successfully captured.",
+    id: logEntry.id,
+    timestamp: logEntry.timestamp
+  });
+});
+
+// List captured webhook logs
+app.get("/api/mock-server/logs", (req, res) => {
+  return res.json({ logs: webhookLogsStore });
+});
+
+// Clear webhook logs
+app.delete("/api/mock-server/logs", (req, res) => {
+  webhookLogsStore = [];
+  return res.json({ success: true, message: "Webhook logs cleared." });
 });
 
 // Resilient Joke Proxy
