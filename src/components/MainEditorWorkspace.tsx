@@ -7,7 +7,8 @@ import {
   Terminal,
   Compass,
   FileCode,
-  Search
+  Search,
+  History
 } from "lucide-react";
 import { VirtualFile, BorderSettings } from "../types";
 import { CodeMapMinimap } from "./CodeMapMinimap";
@@ -68,6 +69,7 @@ interface MainEditorWorkspaceProps {
   setTerminalOutput: React.Dispatch<React.SetStateAction<string>>;
   customCommandInput: string;
   setCustomCommandInput: React.Dispatch<React.SetStateAction<string>>;
+  onOpenTimeMachine?: () => void;
 }
 
 export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = memo(({
@@ -121,7 +123,8 @@ export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = memo(({
   terminalOutput,
   setTerminalOutput,
   customCommandInput,
-  setCustomCommandInput
+  setCustomCommandInput,
+  onOpenTimeMachine
 }) => {
   // Local immediate content buffer to decouple keystrokes from root App.tsx re-renders
   const [localContent, setLocalContent] = useState<string>(activeFile?.content || "");
@@ -479,6 +482,17 @@ export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = memo(({
                   <Search className="w-3.5 h-3.5 text-indigo-300" />
                   <span className="hidden sm:inline">Find</span>
                 </button>
+
+                {onOpenTimeMachine && (
+                  <button
+                    onClick={onOpenTimeMachine}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium text-amber-400/90 hover:text-amber-300 hover:bg-amber-500/10 transition-colors cursor-pointer"
+                    title="File History & Time Machine Snapshots"
+                  >
+                    <History className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="hidden sm:inline">History</span>
+                  </button>
+                )}
               </div>
             </div>
 

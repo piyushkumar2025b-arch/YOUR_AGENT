@@ -584,6 +584,28 @@ export const AppNavigationTabsBar: React.FC<AppNavigationTabsBarProps> = ({
           Diff Inspector
         </button>
         <button
+          onClick={() => setActiveTab("api-client")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "api-client"
+              ? (isDark ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold" : "bg-cyan-100 text-cyan-900 border border-cyan-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50" : "text-slate-500 hover:text-cyan-600 hover:bg-cyan-50")
+          }`}
+        >
+          <Zap className="w-3.5 h-3.5 text-cyan-400" />
+          REST & API Studio
+        </button>
+        <button
+          onClick={() => setActiveTab("sql-studio")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "sql-studio"
+              ? (isDark ? "bg-teal-500/20 text-teal-300 border border-teal-500/40 font-bold" : "bg-teal-100 text-teal-900 border border-teal-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50" : "text-slate-500 hover:text-teal-600 hover:bg-teal-50")
+          }`}
+        >
+          <Database className="w-3.5 h-3.5 text-teal-400" />
+          SQL Studio
+        </button>
+        <button
           onClick={() => setActiveTab("settings")}
           className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
             activeTab === "settings"

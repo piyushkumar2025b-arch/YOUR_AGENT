@@ -62,6 +62,8 @@ const MusicStudioWorkstation = safeLazy(() => import("./MusicStudioWorkstation")
 const CodeHealthDoctorAgent = safeLazy(() => import("./CodeHealthDoctorAgent"), "CodeHealthDoctorAgent");
 const RegexPlaygroundAgent = safeLazy(() => import("./RegexPlaygroundAgent"), "RegexPlaygroundAgent");
 const CodeDiffInspectorModal = safeLazy(() => import("./CodeDiffInspectorModal"), "CodeDiffInspectorModal");
+const ApiClientStudioAgent = safeLazy(() => import("./ApiClientStudioAgent"), "ApiClientStudioAgent");
+const RelationalSqlStudioAgent = safeLazy(() => import("./RelationalSqlStudioAgent"), "RelationalSqlStudioAgent");
 
 interface AppTabViewsRouterProps {
   activeTab: string;
@@ -169,6 +171,7 @@ interface AppTabViewsRouterProps {
   handlePrevTrack?: () => void;
   handleSeek?: (time: number) => void;
   handleSelectTrack?: (idx: number) => void;
+  onOpenTimeMachine?: () => void;
 }
 
 export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = React.memo(({
@@ -276,7 +279,8 @@ export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = React.memo(({
   handleNextTrack,
   handlePrevTrack,
   handleSeek,
-  handleSelectTrack
+  handleSelectTrack,
+  onOpenTimeMachine
 }) => {
   const activeFile = files.find(f => f.path === selectedFilePath);
   const activeBadge = activeFile ? getFileBadgeAndIcon(activeFile.path) : null;
@@ -371,6 +375,7 @@ export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = React.memo(({
             setTerminalOutput={setTerminalOutput}
             customCommandInput={customCommandInput}
             setCustomCommandInput={setCustomCommandInput}
+            onOpenTimeMachine={onOpenTimeMachine}
           />
         </div>
       )}
@@ -1095,6 +1100,29 @@ export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = React.memo(({
               }
               addAgentAction("edit", `Applied diff patch to ${targetPath}`);
             }}
+          />
+        </div>
+      )}
+
+      {/* VIEW: REST & API CLIENT STUDIO */}
+      {activeTab === "api-client" && (
+        <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <ApiClientStudioAgent
+            apiKey={apiKey}
+            theme={theme}
+            onAddLog={(type, msg) => addAgentAction(type as any, msg)}
+          />
+        </div>
+      )}
+
+      {/* VIEW: SQL STUDIO & RELATIONAL SANDBOX */}
+      {activeTab === "sql-studio" && (
+        <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <RelationalSqlStudioAgent
+            apiKey={apiKey}
+            selectedModel={selectedModel}
+            theme={theme}
+            onAddLog={(type, msg) => addAgentAction(type as any, msg)}
           />
         </div>
       )}

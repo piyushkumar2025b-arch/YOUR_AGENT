@@ -4425,6 +4425,132 @@ app.all("/api/proxy", async (req, res: any) => {
   }
 });
 
+// Full-Featured Developer HTTP & REST Client Proxy with SSRF Protection
+app.post("/api/http-client/execute", async (req, res: any) => {
+  if (!isAuthorizedForExecution(req)) {
+    return res.status(401).json({ error: "Unauthorized: Valid authentication session is required." });
+  }
+
+  const { url, method = "GET", headers = {}, body } = req.body || {};
+  if (!url || typeof url !== "string") {
+    return res.status(400).json({ error: "Missing or invalid target 'url' parameter." });
+  }
+
+  const upperMethod = String(method).toUpperCase();
+  const ALLOWED_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
+  if (!ALLOWED_METHODS.includes(upperMethod)) {
+    return res.status(400).json({ error: `Method '${upperMethod}' is not permitted.` });
+  }
+
+  try {
+    const trimmedUrl = url.trim();
+    const isLocalApi = trimmedUrl.startsWith("/");
+    let targetUrlString = trimmedUrl;
+
+    if (isLocalApi) {
+      targetUrlString = `http://127.0.0.1:3000${trimmedUrl}`;
+    } else {
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(trimmedUrl);
+      } catch {
+        return res.status(400).json({ error: "Invalid URL format. Please include http:// or https://" });
+      }
+
+      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+        return res.status(400).json({ error: "Only HTTP and HTTPS protocols are permitted." });
+      }
+
+      // Check against SSRF
+      const safetyCheck = await isSafeDestination(parsedUrl.hostname);
+      if (!safetyCheck.safe) {
+        return res.status(403).json({ error: safetyCheck.reason || "Access to private or restricted network addresses is forbidden." });
+      }
+    }
+
+    // Filter incoming headers
+    const sanitizedHeaders: Record<string, string> = {
+      "User-Agent": "RemixStudio-RESTClient/1.0",
+      Accept: "*/*"
+    };
+
+    if (headers && typeof headers === "object") {
+      for (const [k, v] of Object.entries(headers)) {
+        const lowerK = k.toLowerCase().trim();
+        if (
+          lowerK !== "host" &&
+          lowerK !== "content-length" &&
+          lowerK !== "transfer-encoding" &&
+          typeof v === "string"
+        ) {
+          sanitizedHeaders[k.trim()] = v.trim();
+        }
+      }
+    }
+
+    const fetchOptions: RequestInit = {
+      method: upperMethod,
+      headers: sanitizedHeaders,
+      signal: AbortSignal.timeout(12000),
+      redirect: "follow"
+    };
+
+    if (body !== undefined && body !== null && ["POST", "PUT", "PATCH", "DELETE"].includes(upperMethod)) {
+      fetchOptions.body = typeof body === "string" ? body : JSON.stringify(body);
+      if (!sanitizedHeaders["Content-Type"] && !sanitizedHeaders["content-type"]) {
+        sanitizedHeaders["Content-Type"] = "application/json";
+      }
+    }
+
+    const startTime = Date.now();
+    const upstreamResp = await fetch(targetUrlString, fetchOptions);
+    const timeMs = Date.now() - startTime;
+
+    // Collect response headers
+    const respHeaders: Record<string, string> = {};
+    upstreamResp.headers.forEach((val, key) => {
+      respHeaders[key] = val;
+    });
+
+    const contentType = upstreamResp.headers.get("content-type") || "";
+    let data: any = "";
+    let isJson = false;
+
+    if (upperMethod === "HEAD") {
+      data = "";
+    } else if (contentType.includes("application/json")) {
+      try {
+        data = await upstreamResp.json();
+        isJson = true;
+      } catch {
+        data = await upstreamResp.text();
+      }
+    } else {
+      data = await upstreamResp.text();
+    }
+
+    const sizeBytes = typeof data === "string" ? Buffer.byteLength(data, "utf8") : Buffer.byteLength(JSON.stringify(data), "utf8");
+
+    return res.json({
+      status: upstreamResp.status,
+      statusText: upstreamResp.statusText || (upstreamResp.ok ? "OK" : "Error"),
+      timeMs,
+      sizeBytes,
+      headers: respHeaders,
+      data,
+      isJson
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      error: `Request execution failed: ${err.message}`,
+      status: 0,
+      timeMs: 0,
+      headers: {},
+      data: null
+    });
+  }
+});
+
 // Resilient Joke Proxy
 app.get("/api/jokes/random", cacheMiddleware(60), async (req, res) => {
   const category = (req.query.category as string || "any").toLowerCase();

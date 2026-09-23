@@ -98,6 +98,7 @@ import { AppNavigationTabsBar } from "./components/AppNavigationTabsBar";
 import { AiBrainSidebarPanel } from "./components/AiBrainSidebarPanel";
 import { AppTabViewsRouter } from "./components/AppTabViewsRouter";
 import { AppModalsContainer } from "./components/AppModalsContainer";
+import { FileHistoryTimeMachineModal } from "./components/FileHistoryTimeMachineModal";
 import { WorkspaceTabsBar } from "./components/WorkspaceTabsBar";
 import { errorHandler } from "./services/errorHandlerService";
 import { setupWebsiteSecurityListeners } from "./utils/security";
@@ -261,6 +262,7 @@ export default function App() {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
   const [isSecurityShieldOpen, setIsSecurityShieldOpen] = useState<boolean>(false);
   const [isErrorLogCenterOpen, setIsErrorLogCenterOpen] = useState<boolean>(false);
+  const [isTimeMachineOpen, setIsTimeMachineOpen] = useState<boolean>(false);
   const [unresolvedErrorCount, setUnresolvedErrorCount] = useState<number>(0);
   const [showCodeMap, setShowCodeMap] = useState<boolean>(true);
 
@@ -3676,6 +3678,7 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
               handlePrevTrack={handlePrevTrack}
               handleSeek={handleSeek}
               handleSelectTrack={handleSelectTrack}
+              onOpenTimeMachine={() => setIsTimeMachineOpen(true)}
             />
           </div>
 
@@ -3784,6 +3787,20 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
           setSelectedFilePath(filePath);
           addAgentAction("create", `Generated component '${filePath}' via Gemini Multimodal Vision.`, filePath);
         }}
+      />
+
+      {/* FILE HISTORY & TIME MACHINE MODAL */}
+      <FileHistoryTimeMachineModal
+        isOpen={isTimeMachineOpen}
+        onClose={() => setIsTimeMachineOpen(false)}
+        files={files}
+        activeFilePath={selectedFilePath}
+        theme={theme}
+        onRestoreSnapshot={(path, content) => {
+          handleEditFileContent(content);
+          addAgentAction("edit", `Restored snapshot version of ${path}`);
+        }}
+        onAddLog={(type, msg) => addAgentAction(type as any, msg)}
       />
     </div>
   );

@@ -10,6 +10,11 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    // Health check endpoint for Firebase connection validation
+    match /test/connection {
+      allow read: if true;
+    }
+
     // Workspaces collection - strictly isolated per user UID
     match /workspaces/{userId} {
       allow read, write: if isOwner(userId);
