@@ -10,6 +10,7 @@ import {
   getDocs, 
   onSnapshot,
   query, 
+  where,
   orderBy, 
   limit, 
   serverTimestamp,
@@ -103,4 +104,4 @@ export async function ensureAuth(): Promise<User | null> {
   }
 }
 
-export { collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, orderBy, limit, serverTimestamp, getDocFromServer };
+export { collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, where, orderBy, limit, serverTimestamp, getDocFromServer };

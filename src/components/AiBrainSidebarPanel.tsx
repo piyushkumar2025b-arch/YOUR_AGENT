@@ -53,7 +53,7 @@ interface AiBrainSidebarPanelProps {
   setActiveTab: (tab: any) => void;
 }
 
-export const AiBrainSidebarPanel: React.FC<AiBrainSidebarPanelProps> = ({
+export const AiBrainSidebarPanel: React.FC<AiBrainSidebarPanelProps> = React.memo(({
   onClose,
   theme,
   sidebarWidth,
@@ -385,4 +385,4 @@ export const AiBrainSidebarPanel: React.FC<AiBrainSidebarPanelProps> = ({
       </div>
     </aside>
   );
-};
+});

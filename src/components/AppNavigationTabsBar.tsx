@@ -51,7 +51,10 @@ import {
   Wind,
   Calendar,
   BookMarked,
-  Newspaper
+  Newspaper,
+  ShieldCheck,
+  Regex as RegexIcon,
+  GitCompare
 } from "lucide-react";
 
 interface AppNavigationTabsBarProps {
@@ -546,6 +549,39 @@ export const AppNavigationTabsBar: React.FC<AppNavigationTabsBarProps> = ({
         >
           <Newspaper className="w-3.5 h-3.5 text-rose-400" />
           Global News
+        </button>
+        <button
+          onClick={() => setActiveTab("code-doctor")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "code-doctor"
+              ? (isDark ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-bold" : "bg-indigo-100 text-indigo-900 border border-indigo-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50" : "text-slate-500 hover:text-indigo-600 hover:bg-indigo-50")
+          }`}
+        >
+          <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
+          Code Health Doctor
+        </button>
+        <button
+          onClick={() => setActiveTab("regex-playground")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "regex-playground"
+              ? (isDark ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold" : "bg-purple-100 text-purple-900 border border-purple-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50" : "text-slate-500 hover:text-purple-600 hover:bg-purple-50")
+          }`}
+        >
+          <RegexIcon className="w-3.5 h-3.5 text-purple-400" />
+          Regex Studio
+        </button>
+        <button
+          onClick={() => setActiveTab("diff-inspector")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "diff-inspector"
+              ? (isDark ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold" : "bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50" : "text-slate-500 hover:text-emerald-600 hover:bg-emerald-50")
+          }`}
+        >
+          <GitCompare className="w-3.5 h-3.5 text-emerald-400" />
+          Diff Inspector
         </button>
         <button
           onClick={() => setActiveTab("settings")}

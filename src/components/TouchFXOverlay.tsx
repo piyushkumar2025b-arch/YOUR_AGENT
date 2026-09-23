@@ -16,7 +16,7 @@ interface TouchFXOverlayProps {
   fxEnabled?: boolean;
 }
 
-export const TouchFXOverlay: React.FC<TouchFXOverlayProps> = ({
+export const TouchFXOverlay: React.FC<TouchFXOverlayProps> = React.memo(({
   theme = "dark",
   soundEnabled = false,
   onToggleSound,
@@ -136,4 +136,4 @@ export const TouchFXOverlay: React.FC<TouchFXOverlayProps> = ({
       ))}
     </div>
   );
-};
+});

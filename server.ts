@@ -1060,7 +1060,10 @@ async function callGeminiDirect(messages: any[], temperature: number = 0.4, maxT
 
   // Model candidate list (prioritize modern high-speed models available in Gemini REST API)
   const candidates = [
-    "gemini-2.5-flash"
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash"
   ];
 
   for (const candidate of candidates) {
@@ -1175,21 +1178,40 @@ async function streamGeminiDirect(
   };
   req.on("close", onClose);
 
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-        signal: abortCtrl.signal
-      }
-    );
+  const streamCandidates = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash"
+  ];
 
-    if (!response.ok || !response.body) {
-      req.off("close", onClose);
-      return false;
+  let activeResponse: Response | null = null;
+  for (const modelCandidate of streamCandidates) {
+    try {
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelCandidate}:streamGenerateContent?alt=sse&key=${process.env.GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+          signal: abortCtrl.signal
+        }
+      );
+      if (resp.ok && resp.body) {
+        activeResponse = resp;
+        break;
+      }
+    } catch {
+      // try next candidate
     }
+  }
+
+  if (!activeResponse || !activeResponse.body) {
+    req.off("close", onClose);
+    return false;
+  }
+
+  try {
+    const response = activeResponse;
 
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");

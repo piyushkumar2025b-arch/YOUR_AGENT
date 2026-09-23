@@ -59,6 +59,9 @@ const MusicPlayer = safeLazy(() => import("./MusicPlayer"), "MusicPlayer");
 const YouTubeSearchPlayerAgent = safeLazy(() => import("./YouTubeSearchPlayerAgent"), "YouTubeSearchPlayerAgent");
 const DocumentChatWorkspace = safeLazy(() => import("./DocumentChatWorkspace"), "DocumentChatWorkspace");
 const MusicStudioWorkstation = safeLazy(() => import("./MusicStudioWorkstation"), "MusicStudioWorkstation");
+const CodeHealthDoctorAgent = safeLazy(() => import("./CodeHealthDoctorAgent"), "CodeHealthDoctorAgent");
+const RegexPlaygroundAgent = safeLazy(() => import("./RegexPlaygroundAgent"), "RegexPlaygroundAgent");
+const CodeDiffInspectorModal = safeLazy(() => import("./CodeDiffInspectorModal"), "CodeDiffInspectorModal");
 
 interface AppTabViewsRouterProps {
   activeTab: string;
@@ -168,7 +171,7 @@ interface AppTabViewsRouterProps {
   handleSelectTrack?: (idx: number) => void;
 }
 
-export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = ({
+export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = React.memo(({
   activeTab,
   setActiveTab,
   theme,
@@ -1044,7 +1047,58 @@ export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = ({
           />
         </div>
       )}
+
+      {/* VIEW: CODE HEALTH DOCTOR AGENT */}
+      {activeTab === "code-doctor" && (
+        <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <CodeHealthDoctorAgent
+            files={files}
+            activeFile={activeFile}
+            apiKey={apiKey}
+            selectedModel={selectedModel}
+            theme={theme}
+            onApplyFix={(filePath, newCode) => {
+              if (activeFile && activeFile.path === filePath) {
+                handleEditFileContent(newCode);
+              }
+              addAgentAction("fix", `Applied Code Health Doctor refactoring to ${filePath}`);
+            }}
+            onAddLog={(type, msg) => addAgentAction(type as any, msg)}
+          />
+        </div>
+      )}
+
+      {/* VIEW: REGEX PLAYGROUND AGENT */}
+      {activeTab === "regex-playground" && (
+        <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <RegexPlaygroundAgent
+            apiKey={apiKey}
+            selectedModel={selectedModel}
+            theme={theme}
+            onAddLog={(type, msg) => addAgentAction(type as any, msg)}
+          />
+        </div>
+      )}
+
+      {/* VIEW: DIFF INSPECTOR */}
+      {activeTab === "diff-inspector" && (
+        <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <CodeDiffInspectorModal
+            isOpen={true}
+            onClose={() => setActiveTab("editor")}
+            files={files}
+            activeFilePath={activeFile?.path}
+            theme={theme}
+            onApplyDiff={(targetPath, newContent) => {
+              if (activeFile && activeFile.path === targetPath) {
+                handleEditFileContent(newContent);
+              }
+              addAgentAction("edit", `Applied diff patch to ${targetPath}`);
+            }}
+          />
+        </div>
+      )}
       </React.Suspense>
     </div>
   );
-};
+});

@@ -20,8 +20,11 @@ import {
 import { 
   db, 
   collection, 
+  doc,
+  getDoc,
   getDocs, 
   query, 
+  where,
   orderBy, 
   limit, 
   ensureAuth, 
@@ -81,65 +84,78 @@ export const FirebaseDatabaseDashboard: React.FC<FirebaseDatabaseDashboardProps>
   const refreshFirestoreStats = async () => {
     setIsLoadingDocs(true);
     try {
-      await ensureAuth();
+      const currentUser = await ensureAuth();
+      const currentUid = currentUser?.uid || auth.currentUser?.uid;
       const docsList: FirestoreDocSummary[] = [];
 
-      // Check workspaces
-      try {
-        const wsSnap = await getDocs(collection(db, "workspaces"));
-        wsSnap.forEach(d => {
-          const data = d.data();
-          setCloudFilesCount(Array.isArray(data.files) ? data.files.length : 0);
-          docsList.push({
-            id: d.id,
-            collection: "workspaces",
-            fieldCount: Object.keys(data).length,
-            updatedAt: data.updatedAt ? new Date(data.updatedAt.toMillis?.() || Date.now()).toLocaleTimeString() : undefined,
-            dataPreview: `Files: ${Array.isArray(data.files) ? data.files.length : 0} items (${data.files?.map((f: any) => f.name || f.path).slice(0, 4).join(", ") || ""})`
-          });
-        });
-      } catch (err) {
-        console.warn("Error fetching workspaces collection:", err);
-      }
-
-      // Check chat_sessions
-      try {
-        const chatSnap = await getDocs(collection(db, "chat_sessions"));
-        chatSnap.forEach(d => {
-          const data = d.data();
-          setCloudMessagesCount(Array.isArray(data.messages) ? data.messages.length : 0);
-          docsList.push({
-            id: d.id,
-            collection: "chat_sessions",
-            fieldCount: Object.keys(data).length,
-            updatedAt: data.updatedAt ? new Date(data.updatedAt.toMillis?.() || Date.now()).toLocaleTimeString() : undefined,
-            dataPreview: `Messages: ${Array.isArray(data.messages) ? data.messages.length : 0} interactions stored in Firestore`
-          });
-        });
-      } catch (err) {
-        console.warn("Error fetching chat_sessions collection:", err);
-      }
-
-      // Check agent audit logs
-      try {
-        let logsSnap;
+      if (currentUid) {
+        // 1. Fetch user-scoped workspace document
         try {
-          const logsQ = query(collection(db, "agent_audit_logs"), orderBy("timestamp", "desc"), limit(10));
-          logsSnap = await getDocs(logsQ);
-        } catch {
-          logsSnap = await getDocs(collection(db, "agent_audit_logs"));
+          const wsSnap = await getDoc(doc(db, "workspaces", currentUid));
+          if (wsSnap.exists()) {
+            const data = wsSnap.data();
+            setCloudFilesCount(Array.isArray(data.files) ? data.files.length : 0);
+            docsList.push({
+              id: wsSnap.id,
+              collection: "workspaces",
+              fieldCount: Object.keys(data).length,
+              updatedAt: data.updatedAt ? new Date(data.updatedAt.toMillis?.() || Date.now()).toLocaleTimeString() : undefined,
+              dataPreview: `Files: ${Array.isArray(data.files) ? data.files.length : 0} items (${data.files?.map((f: any) => f.name || f.path).slice(0, 4).join(", ") || ""})`
+            });
+          }
+        } catch (err) {
+          console.debug("User workspace doc check:", err);
         }
-        logsSnap.forEach(d => {
-          const data = d.data();
-          docsList.push({
-            id: d.id,
-            collection: "agent_audit_logs",
-            fieldCount: Object.keys(data).length,
-            dataPreview: `[${data.type || "info"}] ${data.message || "Agent operation logged"}`
+
+        // 2. Fetch user-scoped chat_sessions document
+        try {
+          const chatSnap = await getDoc(doc(db, "chat_sessions", currentUid));
+          if (chatSnap.exists()) {
+            const data = chatSnap.data();
+            setCloudMessagesCount(Array.isArray(data.messages) ? data.messages.length : 0);
+            docsList.push({
+              id: chatSnap.id,
+              collection: "chat_sessions",
+              fieldCount: Object.keys(data).length,
+              updatedAt: data.updatedAt ? new Date(data.updatedAt.toMillis?.() || Date.now()).toLocaleTimeString() : undefined,
+              dataPreview: `Messages: ${Array.isArray(data.messages) ? data.messages.length : 0} interactions stored in Firestore`
+            });
+          }
+        } catch (err) {
+          console.debug("User chat_sessions doc check:", err);
+        }
+
+        // 3. Fetch user-scoped agent audit logs
+        try {
+          let logsSnap;
+          try {
+            const logsQ = query(
+              collection(db, "agent_audit_logs"),
+              where("userId", "==", currentUid),
+              orderBy("timestamp", "desc"),
+              limit(10)
+            );
+            logsSnap = await getDocs(logsQ);
+          } catch {
+            const fallbackQ = query(
+              collection(db, "agent_audit_logs"),
+              where("userId", "==", currentUid),
+              limit(10)
+            );
+            logsSnap = await getDocs(fallbackQ);
+          }
+          logsSnap.forEach(d => {
+            const data = d.data();
+            docsList.push({
+              id: d.id,
+              collection: "agent_audit_logs",
+              fieldCount: Object.keys(data).length,
+              dataPreview: `[${data.type || "info"}] ${data.message || "Agent operation logged"}`
+            });
           });
-        });
-      } catch {
-        // logs collection may be empty or unindexed yet
+        } catch (err) {
+          console.debug("User audit logs check:", err);
+        }
       }
 
       setRecentFirestoreDocs(docsList);

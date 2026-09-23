@@ -36,10 +36,10 @@ export const CodeMapMinimap: React.FC<CodeMapMinimapProps> = memo(({
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState<"map" | "symbols">("map");
-  const [scrollTopRatio, setScrollTopRatio] = useState(0);
-  const [viewportHeightRatio, setViewportHeightRatio] = useState(0.2);
   const [symbolSearch, setSymbolSearch] = useState("");
   const minimapRef = useRef<HTMLDivElement>(null);
+  const viewportBoxRef = useRef<HTMLDivElement>(null);
+  const scrollPercentRef = useRef<HTMLSpanElement>(null);
 
   const lines = useMemo(() => (content || "").split("\n"), [content]);
   const totalLines = lines.length;
@@ -159,10 +159,15 @@ export const CodeMapMinimap: React.FC<CodeMapMinimapProps> = memo(({
         rafId = null;
         const { scrollTop, scrollHeight, clientHeight } = textarea;
         const maxScroll = Math.max(1, scrollHeight - clientHeight);
-        const ratio = scrollTop / maxScroll;
+        const ratio = Math.max(0, Math.min(1, scrollTop / maxScroll));
         const vpRatio = Math.min(1, Math.max(0.05, clientHeight / Math.max(1, scrollHeight)));
-        setScrollTopRatio(ratio);
-        setViewportHeightRatio(vpRatio);
+        if (viewportBoxRef.current) {
+          viewportBoxRef.current.style.top = `${ratio * 85}%`;
+          viewportBoxRef.current.style.height = `${Math.max(12, vpRatio * 100)}%`;
+        }
+        if (scrollPercentRef.current) {
+          scrollPercentRef.current.innerText = `${Math.round(ratio * 100)}%`;
+        }
       });
     };
 
@@ -304,10 +309,11 @@ export const CodeMapMinimap: React.FC<CodeMapMinimapProps> = memo(({
 
             {/* Viewport Overlay Box (Indicates current scroll window) */}
             <div
-              className="absolute left-0 right-0 border-y-2 border-indigo-500 bg-indigo-500/15 backdrop-blur-[1px] rounded transition-all pointer-events-none shadow-lg shadow-indigo-500/20"
+              ref={viewportBoxRef}
+              className="absolute left-0 right-0 border-y-2 border-indigo-500 bg-indigo-500/15 backdrop-blur-[1px] rounded pointer-events-none shadow-lg shadow-indigo-500/20"
               style={{
-                top: `${scrollTopRatio * 85}%`,
-                height: `${Math.max(12, viewportHeightRatio * 100)}%`
+                top: "0%",
+                height: "20%"
               }}
             >
               <div className="absolute right-1 top-1 px-1 py-0.2 rounded bg-indigo-600 text-white text-[8px] font-bold shadow">
@@ -362,8 +368,8 @@ export const CodeMapMinimap: React.FC<CodeMapMinimapProps> = memo(({
           <Zap className="w-3 h-3 text-indigo-400" />
           {symbols.length} Symbols
         </span>
-        <span className="text-indigo-300 font-bold">
-          {Math.round(scrollTopRatio * 100)}%
+        <span ref={scrollPercentRef} className="text-indigo-300 font-bold">
+          0%
         </span>
       </div>
     </div>

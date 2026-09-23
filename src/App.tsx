@@ -387,7 +387,7 @@ export default function App() {
     ];
   });
 
-  const addAgentAction = (type: "create" | "edit" | "delete" | "analyze" | "info" | "error" | "memory", message: string, path?: string) => {
+  const addAgentAction = useCallback((type: "create" | "edit" | "delete" | "analyze" | "info" | "error" | "memory", message: string, path?: string) => {
     const newAction: AgentAction = {
       id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       type,
@@ -395,8 +395,8 @@ export default function App() {
       path,
       timestamp: new Date().toLocaleTimeString()
     };
-    setAgentActions(prev => [newAction, ...prev]);
-  };
+    setAgentActions(prev => [newAction, ...prev.slice(0, 99)]);
+  }, []);
 
   const safeAlert = (message: string, type: "info" | "error" = "info") => {
     try {
@@ -1497,9 +1497,9 @@ export default function App() {
     }
   };
 
-  const handleLanguageChange = (newLang: string) => {
+  const handleLanguageChange = useCallback((newLang: string) => {
     setFiles(prev => prev.map(f => f.path === selectedFilePath ? { ...f, language: newLang } : f));
-  };
+  }, [selectedFilePath]);
 
   // ----------------------------------------------------
   // Gmail Agent Methods
@@ -1666,9 +1666,9 @@ export default function App() {
     addAgentAction("delete", `Deleted file ${cleaned} manually.`, cleaned);
   };
 
-  const handleEditFileContent = (newVal: string) => {
-    setFiles(files.map(f => f.path === selectedFilePath ? { ...f, content: newVal, isUserCreated: true } : f));
-  };
+  const handleEditFileContent = useCallback((newVal: string) => {
+    setFiles(prev => prev.map(f => f.path === selectedFilePath ? { ...f, content: newVal, isUserCreated: true } : f));
+  }, [selectedFilePath]);
 
   // ====================================================
   // EXTRA FEATURES INTEGRATION

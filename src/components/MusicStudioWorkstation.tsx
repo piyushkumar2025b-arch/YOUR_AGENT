@@ -34,6 +34,12 @@ export const MusicStudioWorkstation: React.FC<MusicStudioWorkstationProps> = ({
   const isDark = theme !== "light";
 
   const [viewMode, setViewMode] = useState<"studio" | "piano" | "drums">(initialMode);
+
+  useEffect(() => {
+    if (initialMode) {
+      setViewMode(initialMode);
+    }
+  }, [initialMode]);
   const [masterVolume, setMasterVolume] = useState<number>(0.85);
   const [reverbAmount, setReverbAmount] = useState<number>(0.25);
   const [visualizerType, setVisualizerType] = useState<"waveform" | "spectrum">("spectrum");

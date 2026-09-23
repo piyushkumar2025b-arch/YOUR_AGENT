@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useDeferredValue, useMemo } from "react";
+import React, { useState, useEffect, useRef, useDeferredValue, useMemo, useCallback, memo } from "react";
 import {
   Edit3,
   Trash2,
@@ -6,13 +6,15 @@ import {
   Play,
   Terminal,
   Compass,
-  FileCode
+  FileCode,
+  Search
 } from "lucide-react";
 import { VirtualFile, BorderSettings } from "../types";
 import { CodeMapMinimap } from "./CodeMapMinimap";
 import { TerminalConsolePanel } from "./TerminalConsolePanel";
 import { VirtualLineGutter } from "./VirtualLineGutter";
 import { LineOffsetIndex } from "../utils/editorPerformance";
+import { EditorFindReplaceBar } from "./EditorFindReplaceBar";
 
 interface MainEditorWorkspaceProps {
   theme: "light" | "dark";
@@ -68,7 +70,7 @@ interface MainEditorWorkspaceProps {
   setCustomCommandInput: React.Dispatch<React.SetStateAction<string>>;
 }
 
-export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = ({
+export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = memo(({
   theme,
   activeFile,
   activeBadge,
@@ -132,13 +134,42 @@ export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = ({
   const lineIndexerRef = useRef(new LineOffsetIndex());
   const [localCursor, setLocalCursor] = useState({ line: cursorLine || 1, col: cursorCol || 1 });
   const cursorPosDebounceRef = useRef<any>(null);
-  const [editorScrollTop, setEditorScrollTop] = useState<number>(0);
-  const scrollRafRef = useRef<number | null>(null);
+  const activeLineRef = useRef<HTMLDivElement | null>(null);
 
-  // Keep line index updated with content
-  useEffect(() => {
-    lineIndexerRef.current.update(localContent);
-  }, [localContent]);
+  // In-Editor Find & Replace State
+  const [showFindBar, setShowFindBar] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [replaceQuery, setReplaceQuery] = useState<string>("");
+  const [matchCase, setMatchCase] = useState<boolean>(false);
+  const [useRegex, setUseRegex] = useState<boolean>(false);
+  const [matchWholeWord, setMatchWholeWord] = useState<boolean>(false);
+  const [currentMatchIndex, setCurrentMatchIndex] = useState<number>(0);
+
+  // Calculate search match intervals
+  const searchMatches = useMemo(() => {
+    if (!searchQuery) return [];
+    try {
+      let pattern = searchQuery;
+      if (!useRegex) {
+        pattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      }
+      if (matchWholeWord) {
+        pattern = `\\b${pattern}\\b`;
+      }
+      const regex = new RegExp(pattern, matchCase ? "g" : "gi");
+      const indices: { start: number; end: number }[] = [];
+      let m: RegExpExecArray | null;
+      let limit = 0;
+      while ((m = regex.exec(localContent)) !== null && limit < 1000) {
+        limit++;
+        indices.push({ start: m.index, end: m.index + m[0].length });
+        if (m[0].length === 0) regex.lastIndex++;
+      }
+      return indices;
+    } catch {
+      return [];
+    }
+  }, [searchQuery, localContent, matchCase, useRegex, matchWholeWord]);
 
   // Sync cursor when prop changes externally (e.g. goto line modal)
   useEffect(() => {
@@ -146,6 +177,17 @@ export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = ({
       setLocalCursor({ line: cursorLine, col: cursorCol || 1 });
     }
   }, [cursorLine, cursorCol]);
+
+  // Keep active line highlight positioned smoothly without React state updates
+  useEffect(() => {
+    if (activeLineRef.current && editorTextareaRef.current) {
+      const st = editorTextareaRef.current.scrollTop;
+      const lhFloat = parseFloat(String(borderSettings.codeLineHeight || 1.625));
+      const lineH = editorFontSize * (isNaN(lhFloat) ? 1.625 : lhFloat);
+      activeLineRef.current.style.transform = `translateY(${16 + (localCursor.line - 1) * lineH - st}px)`;
+      activeLineRef.current.style.height = `${lineH}px`;
+    }
+  }, [localCursor.line, editorFontSize, borderSettings.codeLineHeight]);
 
   // Sync with activeFile when switching files or when external updates occur
   useEffect(() => {
@@ -167,15 +209,19 @@ export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = ({
 
     if (debounceSyncRef.current) clearTimeout(debounceSyncRef.current);
     debounceSyncRef.current = setTimeout(() => {
-      isTypingRef.current = false;
       handleEditFileContent(val);
+      setTimeout(() => {
+        isTypingRef.current = false;
+      }, 50);
     }, 300);
   };
 
   const onLocalBlur = () => {
-    isTypingRef.current = false;
     if (debounceSyncRef.current) clearTimeout(debounceSyncRef.current);
     handleEditFileContent(localContent);
+    setTimeout(() => {
+      isTypingRef.current = false;
+    }, 50);
   };
 
   // High-performance O(log N) cursor positioning that never lags root App.tsx
@@ -190,7 +236,7 @@ export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = ({
     }, 250);
   };
 
-  // Direct synchronous scrolling across DOM nodes (60 FPS without React bottleneck)
+  // Direct synchronous scrolling across DOM nodes (60/120 FPS zero React bottleneck)
   const onEditorScrollInternal = (e: React.UIEvent<HTMLTextAreaElement>) => {
     const st = e.currentTarget.scrollTop;
     const sl = e.currentTarget.scrollLeft;
@@ -202,20 +248,77 @@ export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = ({
     if (editorGutterRef.current) {
       editorGutterRef.current.scrollTop = st;
     }
-
-    if (scrollRafRef.current !== null) cancelAnimationFrame(scrollRafRef.current);
-    scrollRafRef.current = requestAnimationFrame(() => {
-      setEditorScrollTop(st);
-      scrollRafRef.current = null;
-    });
+    if (activeLineRef.current) {
+      const lhFloat = parseFloat(String(borderSettings.codeLineHeight || 1.625));
+      const lineH = editorFontSize * (isNaN(lhFloat) ? 1.625 : lhFloat);
+      activeLineRef.current.style.transform = `translateY(${16 + (localCursor.line - 1) * lineH - st}px)`;
+    }
 
     if (handleEditorScroll) {
       handleEditorScroll(e);
     }
   };
 
-  // Instant local Tab key indentation
+  // Find & Replace navigation and execution handlers
+  const onFindNext = useCallback(() => {
+    if (searchMatches.length === 0) return;
+    const nextIdx = (currentMatchIndex + 1) % searchMatches.length;
+    setCurrentMatchIndex(nextIdx);
+    const match = searchMatches[nextIdx];
+    if (editorTextareaRef.current && match) {
+      editorTextareaRef.current.focus();
+      editorTextareaRef.current.selectionStart = match.start;
+      editorTextareaRef.current.selectionEnd = match.end;
+      const pos = lineIndexerRef.current.getPosition(match.start);
+      handleJumpToLineInternal(pos.line);
+    }
+  }, [searchMatches, currentMatchIndex]);
+
+  const onFindPrev = useCallback(() => {
+    if (searchMatches.length === 0) return;
+    const prevIdx = (currentMatchIndex - 1 + searchMatches.length) % searchMatches.length;
+    setCurrentMatchIndex(prevIdx);
+    const match = searchMatches[prevIdx];
+    if (editorTextareaRef.current && match) {
+      editorTextareaRef.current.focus();
+      editorTextareaRef.current.selectionStart = match.start;
+      editorTextareaRef.current.selectionEnd = match.end;
+      const pos = lineIndexerRef.current.getPosition(match.start);
+      handleJumpToLineInternal(pos.line);
+    }
+  }, [searchMatches, currentMatchIndex]);
+
+  const onReplace = useCallback(() => {
+    if (searchMatches.length === 0) return;
+    const match = searchMatches[currentMatchIndex] || searchMatches[0];
+    if (!match) return;
+    const nextContent = localContent.substring(0, match.start) + replaceQuery + localContent.substring(match.end);
+    onLocalTextChange(nextContent);
+  }, [searchMatches, currentMatchIndex, localContent, replaceQuery]);
+
+  const onReplaceAll = useCallback(() => {
+    if (searchMatches.length === 0) return;
+    try {
+      let pattern = searchQuery;
+      if (!useRegex) {
+        pattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      }
+      if (matchWholeWord) {
+        pattern = `\\b${pattern}\\b`;
+      }
+      const regex = new RegExp(pattern, matchCase ? "g" : "gi");
+      const nextContent = localContent.replace(regex, replaceQuery);
+      onLocalTextChange(nextContent);
+    } catch {}
+  }, [searchMatches, searchQuery, replaceQuery, useRegex, matchWholeWord, matchCase, localContent]);
+
+  // Instant local Tab key indentation & shortcuts
   const handleKeyDownInternal = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "f" || e.key.toLowerCase() === "h")) {
+      e.preventDefault();
+      setShowFindBar(true);
+      return;
+    }
     if (e.key === "Tab") {
       e.preventDefault();
       const textarea = e.currentTarget;
@@ -363,6 +466,19 @@ export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = ({
                   <Compass className="w-3.5 h-3.5 text-indigo-300" />
                   <span className="hidden sm:inline">Map</span>
                 </button>
+
+                <button
+                  onClick={() => setShowFindBar(!showFindBar)}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors cursor-pointer ${
+                    showFindBar
+                      ? "bg-indigo-600/80 text-white"
+                      : "text-zinc-400 hover:text-white hover:bg-white/5"
+                  }`}
+                  title="Find & Replace in active file (Ctrl+F / Cmd+F)"
+                >
+                  <Search className="w-3.5 h-3.5 text-indigo-300" />
+                  <span className="hidden sm:inline">Find</span>
+                </button>
               </div>
             </div>
 
@@ -393,6 +509,29 @@ export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = ({
 
           {/* Editor content workspace */}
           <div className="flex-1 flex flex-col font-mono overflow-hidden bg-[#1e1e1e] relative">
+            {/* VS Code-style Floating Find & Replace Bar */}
+            <EditorFindReplaceBar
+              isOpen={showFindBar}
+              onClose={() => setShowFindBar(false)}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              replaceQuery={replaceQuery}
+              setReplaceQuery={setReplaceQuery}
+              matchCase={matchCase}
+              setMatchCase={setMatchCase}
+              useRegex={useRegex}
+              setUseRegex={setUseRegex}
+              matchWholeWord={matchWholeWord}
+              setMatchWholeWord={setMatchWholeWord}
+              currentMatchIndex={currentMatchIndex}
+              totalMatches={searchMatches.length}
+              onFindNext={onFindNext}
+              onFindPrev={onFindPrev}
+              onReplace={onReplace}
+              onReplaceAll={onReplaceAll}
+              theme={theme}
+            />
+
             <div className="flex-1 flex overflow-hidden relative">
               {/* Virtualized Line Numbers Gutter (O(1) DOM nodes, never lags) */}
               {(() => {
@@ -421,9 +560,10 @@ export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = ({
                 {/* Current Active Line Background Highlight Bar */}
                 {localCursor.line > 0 && (
                   <div
-                    className="absolute left-0 right-0 bg-sky-500/10 border-y border-sky-500/20 pointer-events-none transition-all duration-75 z-0"
+                    ref={activeLineRef}
+                    className="absolute left-0 right-0 top-0 bg-sky-500/10 border-y border-sky-500/20 pointer-events-none z-0"
                     style={{
-                      top: `${16 + (localCursor.line - 1) * (editorFontSize * (isNaN(parseFloat(String(borderSettings.codeLineHeight))) ? 1.625 : parseFloat(String(borderSettings.codeLineHeight)))) - editorScrollTop}px`,
+                      transform: `translateY(${16 + (localCursor.line - 1) * (editorFontSize * (isNaN(parseFloat(String(borderSettings.codeLineHeight))) ? 1.625 : parseFloat(String(borderSettings.codeLineHeight))))}px)`,
                       height: `${editorFontSize * (isNaN(parseFloat(String(borderSettings.codeLineHeight))) ? 1.625 : parseFloat(String(borderSettings.codeLineHeight)))}px`
                     }}
                   />
@@ -575,4 +715,4 @@ export const MainEditorWorkspace: React.FC<MainEditorWorkspaceProps> = ({
       )}
     </div>
   );
-};
+});
