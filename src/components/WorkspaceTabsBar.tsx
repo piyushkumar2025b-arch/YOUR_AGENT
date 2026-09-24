@@ -51,7 +51,17 @@ import {
   ChevronRight,
   Sliders,
   Calendar,
-  Check
+  Check,
+  Box,
+  Orbit,
+  Server,
+  Gauge,
+  Send,
+  Stethoscope,
+  Binary,
+  GitCompare,
+  FileCode2,
+  Radio
 } from "lucide-react";
 
 export type ToolCategory = "core" | "music" | "ai" | "web" | "dev" | "data" | "media";
@@ -105,6 +115,16 @@ export const WORKSPACE_TABS: TabItem[] = [
   { id: "trending-repos", label: "Trending Repos", icon: Github, category: "web", description: "Explore trending open-source repositories on GitHub today" },
 
   // Dev Utilities & Tools
+  { id: "openapi-studio", label: "OpenAPI & Swagger", icon: FileCode2, category: "dev", description: "Interactive OpenAPI 3.1 & Swagger visual architect, automated endpoint scanner & live API test bench", badge: "New", badgeColor: "bg-emerald-500/20 text-emerald-300" },
+  { id: "stream-tester", label: "WebSocket & SSE Stream", icon: Radio, category: "dev", description: "Realtime WebSocket (WSS) & Server-Sent Events (SSE) live connection tester & mock feed emulator", badge: "Pro", badgeColor: "bg-purple-500/20 text-purple-300" },
+  { id: "mock-server", label: "Mock API Server", icon: Server, category: "dev", description: "Configurable mock REST server with custom latency, status codes & webhook catcher", badge: "Pro", badgeColor: "bg-emerald-500/20 text-emerald-300" },
+  { id: "perf-auditor", label: "Perf & Bundle Audit", icon: Gauge, category: "dev", description: "Lighthouse-style code quality, bundle size, security & accessibility auditor", badge: "New", badgeColor: "bg-cyan-500/20 text-cyan-300" },
+  { id: "docker-studio", label: "Docker & Compose", icon: Box, category: "dev", description: "Multi-stage Dockerfile, docker-compose & devcontainer configuration architect", badge: "New", badgeColor: "bg-sky-500/20 text-sky-300" },
+  { id: "graphql-studio", label: "GraphQL Explorer", icon: Orbit, category: "dev", description: "Interactive GraphQL playground, schema introspection visualizer & query tester", badge: "New", badgeColor: "bg-pink-500/20 text-pink-300" },
+  { id: "api-client", label: "REST Client Studio", icon: Send, category: "dev", description: "Interactive Postman-style HTTP client with SSRF protection & header presets" },
+  { id: "code-doctor", label: "Code Doctor AI", icon: Stethoscope, category: "dev", description: "Automated codebase scanner, syntax error diagnostician & 1-click refactoring" },
+  { id: "diff-inspector", label: "Git Diff Inspector", icon: GitCompare, category: "dev", description: "Side-by-side split visual diff inspector with chunk navigation & patch applier" },
+  { id: "regex-playground", label: "Regex Playground", icon: Binary, category: "dev", description: "Interactive regex evaluator with capture groups, cheat sheet & AI explainer" },
   { id: "calculator", label: "Scientific Calc", icon: Calculator, category: "dev", description: "Scientific & programmer calculator with expression history" },
   { id: "code-analyzer", label: "Code Security", icon: ShieldAlert, category: "dev", description: "Static AST security auditing, vulnerability & CVE scanner" },
   { id: "api-hub", label: "API Studio Hub", icon: Bot, category: "dev", description: "Explore and test 50+ free public REST APIs directly" },
@@ -116,6 +136,7 @@ export const WORKSPACE_TABS: TabItem[] = [
   { id: "gaming", label: "Arcade Games", icon: Gamepad2, category: "dev", description: "Retro browser games, arcade physics & coding minigames" },
 
   // Data & Knowledge APIs
+  { id: "sql-studio", label: "Relational SQL Studio", icon: Database, category: "data", description: "Interactive SQLite & PostgreSQL relational query sandbox with table visualizer", badge: "Pro", badgeColor: "bg-blue-500/20 text-blue-300" },
   { id: "weather", label: "Live Weather", icon: Sun, category: "data", description: "Realtime meteorological forecasts, radar & humidity" },
   { id: "currency-agent", label: "Forex & Crypto", icon: DollarSign, category: "data", description: "Live foreign exchange rates & fiat conversions" },
   { id: "crypto-agent", label: "Crypto API", icon: Coins, category: "data", description: "Realtime cryptocurrency market prices & 24h volume tracking" },
@@ -384,14 +405,14 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = memo(({
                 ? "border-indigo-500/30 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20"
                 : "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
             }`}
-            title="Open Full Tools & Agents Library (All 54 Modules)"
+            title={`Open Full Tools & Agents Library (All ${WORKSPACE_TABS.length} Modules)`}
           >
             <LayoutGrid className="w-3.5 h-3.5 text-indigo-400" />
             <span className="font-semibold whitespace-nowrap">More Tools</span>
             <span className={`text-[9px] font-mono px-1 rounded ${
               isDark ? "bg-indigo-900/60 text-indigo-200" : "bg-indigo-100 text-indigo-800"
             }`}>
-              54
+              {WORKSPACE_TABS.length}
             </span>
           </button>
 
@@ -403,7 +424,7 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = memo(({
                 ? (isDark ? "bg-amber-500/20 border-amber-500/40 text-amber-300" : "bg-amber-50 border-amber-300 text-amber-800")
                 : (isDark ? "border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800" : "border-slate-200 text-slate-600 hover:bg-slate-100")
             }`}
-            title={barMode === "full" ? "Switch to Compact Bar Mode (Core Tabs Only)" : "Switch to Full Bar Mode (Show All 54 Tools in Normal Bar)"}
+            title={barMode === "full" ? "Switch to Compact Bar Mode (Core Tabs Only)" : `Switch to Full Bar Mode (Show All ${WORKSPACE_TABS.length} Tools in Normal Bar)`}
           >
             <Sliders className="w-3 h-3 text-amber-400" />
             <span className="hidden xl:inline whitespace-nowrap">

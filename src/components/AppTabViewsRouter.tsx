@@ -66,6 +66,10 @@ const ApiClientStudioAgent = safeLazy(() => import("./ApiClientStudioAgent"), "A
 const RelationalSqlStudioAgent = safeLazy(() => import("./RelationalSqlStudioAgent"), "RelationalSqlStudioAgent");
 const MockServerWebhookAgent = safeLazy(() => import("./MockServerWebhookAgent"), "MockServerWebhookAgent");
 const CodePerformanceAuditAgent = safeLazy(() => import("./CodePerformanceAuditAgent"), "CodePerformanceAuditAgent");
+const DockerDevContainerStudioAgent = safeLazy(() => import("./DockerDevContainerStudioAgent"), "DockerDevContainerStudioAgent");
+const GraphQLExplorerStudioAgent = safeLazy(() => import("./GraphQLExplorerStudioAgent"), "GraphQLExplorerStudioAgent");
+const OpenApiStudioAgent = safeLazy(() => import("./OpenApiStudioAgent"), "OpenApiStudioAgent");
+const RealtimeStreamTesterAgent = safeLazy(() => import("./RealtimeStreamTesterAgent"), "RealtimeStreamTesterAgent");
 
 interface AppTabViewsRouterProps {
   activeTab: string;
@@ -1071,9 +1075,7 @@ export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = React.memo(({
             selectedModel={selectedModel}
             theme={theme}
             onApplyFix={(filePath, newCode) => {
-              if (activeFile && activeFile.path === filePath) {
-                handleEditFileContent(newCode);
-              }
+              setFiles(prev => prev.map(f => f.path === filePath ? { ...f, content: newCode, isUserCreated: true } : f));
               addAgentAction("fix", `Applied Code Health Doctor refactoring to ${filePath}`);
             }}
             onAddLog={(type, msg) => addAgentAction(type as any, msg)}
@@ -1103,9 +1105,7 @@ export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = React.memo(({
             activeFilePath={activeFile?.path}
             theme={theme}
             onApplyDiff={(targetPath, newContent) => {
-              if (activeFile && activeFile.path === targetPath) {
-                handleEditFileContent(newContent);
-              }
+              setFiles(prev => prev.map(f => f.path === targetPath ? { ...f, content: newContent, isUserCreated: true } : f));
               addAgentAction("edit", `Applied diff patch to ${targetPath}`);
             }}
           />
@@ -1157,6 +1157,83 @@ export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = React.memo(({
               setSelectedFilePath(path);
               setActiveTab("editor");
             }}
+          />
+        </div>
+      )}
+
+      {/* VIEW: DOCKER & DEVCONTAINER ARCHITECT STUDIO */}
+      {activeTab === "docker-studio" && (
+        <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <DockerDevContainerStudioAgent
+            files={files}
+            theme={theme}
+            onSaveFile={(path, content) => {
+              setFiles(prev => {
+                const exists = prev.some(f => f.path === path);
+                if (exists) {
+                  return prev.map(f => f.path === path ? { ...f, content, isUserCreated: true } : f);
+                }
+                const ext = path.split(".").pop() || "plaintext";
+                return [...prev, { path, content, language: ext, isFolder: false, isUserCreated: true }];
+              });
+              addAgentAction("create", `Created or updated ${path} in workspace`);
+            }}
+            onAddLog={(type, msg) => addAgentAction(type as any, msg)}
+          />
+        </div>
+      )}
+
+      {/* VIEW: GRAPHQL EXPLORER & PLAYGROUND STUDIO */}
+      {activeTab === "graphql-studio" && (
+        <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <GraphQLExplorerStudioAgent
+            apiKey={apiKey}
+            theme={theme}
+            onAddLog={(type, msg) => addAgentAction(type as any, msg)}
+          />
+        </div>
+      )}
+
+      {/* VIEW: OPENAPI & SWAGGER SPEC STUDIO */}
+      {activeTab === "openapi-studio" && (
+        <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <OpenApiStudioAgent
+            files={files}
+            theme={theme}
+            onSaveFile={(path, content) => {
+              setFiles(prev => {
+                const exists = prev.some(f => f.path === path);
+                if (exists) {
+                  return prev.map(f => f.path === path ? { ...f, content, isUserCreated: true } : f);
+                }
+                const ext = path.split(".").pop() || "plaintext";
+                return [...prev, { path, content, language: ext, isFolder: false, isUserCreated: true }];
+              });
+              addAgentAction("create", `Created or updated ${path} in workspace`);
+            }}
+            onAddLog={(type, msg) => addAgentAction(type as any, msg)}
+          />
+        </div>
+      )}
+
+      {/* VIEW: WEBSOCKET & SSE REALTIME STREAM TESTER */}
+      {activeTab === "stream-tester" && (
+        <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <RealtimeStreamTesterAgent
+            apiKey={apiKey}
+            theme={theme}
+            onSaveFile={(path, content) => {
+              setFiles(prev => {
+                const exists = prev.some(f => f.path === path);
+                if (exists) {
+                  return prev.map(f => f.path === path ? { ...f, content, isUserCreated: true } : f);
+                }
+                const ext = path.split(".").pop() || "plaintext";
+                return [...prev, { path, content, language: ext, isFolder: false, isUserCreated: true }];
+              });
+              addAgentAction("create", `Created or updated ${path} in workspace`);
+            }}
+            onAddLog={(type, msg) => addAgentAction(type as any, msg)}
           />
         </div>
       )}

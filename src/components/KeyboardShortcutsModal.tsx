@@ -29,7 +29,7 @@ import {
 
 export interface ShortcutItem {
   id: string;
-  category: "Files & Navigation" | "Editor & Workspace" | "Tools & Actions" | "Theme & View";
+  category: "Files & Navigation" | "Editor & Workspace" | "Tools & Actions" | "Theme & View" | "Dev Tools";
   title: string;
   description: string;
   keys: string[];
@@ -198,6 +198,127 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
       action: () => {
         onSelectTab("preview");
         triggerHudToast("⚡ Jumped to Live Preview");
+      }
+    },
+    {
+      id: "tab-docker-studio",
+      category: "Dev Tools",
+      title: "Open Docker & Dev Container Studio",
+      description: "Generate multi-stage Dockerfile, compose & devcontainer specs",
+      keys: ["Ctrl", "Alt", "D"],
+      action: () => {
+        onSelectTab("docker-studio");
+        triggerHudToast("🐳 Opened Docker & Dev Container Studio");
+      }
+    },
+    {
+      id: "tab-openapi-studio",
+      category: "Dev Tools",
+      title: "Open OpenAPI & Swagger Studio",
+      description: "Visual OpenAPI 3.1 architect, endpoint scanner & interactive Swagger test bench",
+      keys: ["Ctrl", "Alt", "O"],
+      action: () => {
+        onSelectTab("openapi-studio");
+        triggerHudToast("📄 Opened OpenAPI & Swagger Studio");
+      }
+    },
+    {
+      id: "tab-stream-tester",
+      category: "Dev Tools",
+      title: "Open WebSocket & SSE Stream Studio",
+      description: "Live WebSocket and SSE stream inspector, message ledger & mock generator",
+      keys: ["Ctrl", "Alt", "W"],
+      action: () => {
+        onSelectTab("stream-tester");
+        triggerHudToast("📡 Opened WebSocket & SSE Stream Studio");
+      }
+    },
+    {
+      id: "tab-graphql-studio",
+      category: "Dev Tools",
+      title: "Open GraphQL Explorer & Playground",
+      description: "Test GraphQL queries, mutations, variables & schema introspection",
+      keys: ["Ctrl", "Alt", "G"],
+      action: () => {
+        onSelectTab("graphql-studio");
+        triggerHudToast("🚀 Opened GraphQL Explorer");
+      }
+    },
+    {
+      id: "tab-mock-server",
+      category: "Dev Tools",
+      title: "Open Mock API Server & Webhooks",
+      description: "Configure simulated REST endpoints with custom latency & catch webhooks",
+      keys: ["Ctrl", "Alt", "M"],
+      action: () => {
+        onSelectTab("mock-server");
+        triggerHudToast("⚡ Opened Mock API Server & Webhook Inspector");
+      }
+    },
+    {
+      id: "tab-perf-auditor",
+      category: "Dev Tools",
+      title: "Open Code & Performance Auditor",
+      description: "Run Lighthouse-style performance, security, and quality analysis",
+      keys: ["Ctrl", "Alt", "P"],
+      action: () => {
+        onSelectTab("perf-auditor");
+        triggerHudToast("⚡ Opened Performance & Code Auditor");
+      }
+    },
+    {
+      id: "tab-api-client",
+      category: "Dev Tools",
+      title: "Open REST API Client Studio",
+      description: "Test HTTP requests with SSRF protection & header presets",
+      keys: ["Ctrl", "Alt", "R"],
+      action: () => {
+        onSelectTab("api-client");
+        triggerHudToast("⚡ Opened REST Client Studio");
+      }
+    },
+    {
+      id: "tab-sql-studio",
+      category: "Dev Tools",
+      title: "Open Relational SQL Studio",
+      description: "Interactive SQLite & PostgreSQL query sandbox with table visualizer",
+      keys: ["Ctrl", "Alt", "S"],
+      action: () => {
+        onSelectTab("sql-studio");
+        triggerHudToast("⚡ Opened Relational SQL Studio");
+      }
+    },
+    {
+      id: "tab-code-doctor",
+      category: "Dev Tools",
+      title: "Open Code Doctor AI",
+      description: "Automated codebase scanner & 1-click refactoring engine",
+      keys: ["Ctrl", "Alt", "H"],
+      action: () => {
+        onSelectTab("code-doctor");
+        triggerHudToast("🩺 Opened Code Doctor AI");
+      }
+    },
+    {
+      id: "tab-diff-inspector",
+      category: "Dev Tools",
+      title: "Open Git Diff Inspector",
+      description: "Side-by-side split visual diff inspector with patch applier",
+      keys: ["Ctrl", "Alt", "F"],
+      action: () => {
+        onSelectTab("diff-inspector");
+        triggerHudToast("🔍 Opened Git Diff Inspector");
+      }
+    },
+    {
+      id: "tab-regex-playground",
+      category: "Dev Tools",
+      title: "Open Regex Playground",
+      description: "Interactive regular expression tester with capture groups & explanation",
+      keys: ["Ctrl", "Alt", "X"],
+      action: () => {
+        onSelectTab("regex-playground");
+        triggerHudToast("⚡ Opened Regex Playground");
       }
     },
     {
@@ -669,6 +790,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
               {(
                 [
                   "Files & Navigation",
+                  "Dev Tools",
                   "Editor & Workspace",
                   "Tools & Actions",
                   "Theme & View"
