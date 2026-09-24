@@ -64,7 +64,9 @@ import {
   Radio,
   Clock,
   GitFork,
-  Key
+  Key,
+  GitBranch,
+  FileJson
 } from "lucide-react";
 
 export type ToolCategory = "core" | "music" | "ai" | "web" | "dev" | "data" | "media";
@@ -118,6 +120,10 @@ export const WORKSPACE_TABS: TabItem[] = [
   { id: "trending-repos", label: "Trending Repos", icon: Github, category: "web", description: "Explore trending open-source repositories on GitHub today" },
 
   // Dev Utilities & Tools
+  { id: "load-benchmark", label: "Load & Stress Benchmark", icon: Flame, category: "dev", description: "Real-time API load & stress testing, concurrency runner, latency percentiles & k6/autocannon exporter", badge: "New", badgeColor: "bg-amber-500/20 text-amber-300" },
+  { id: "seo-studio", label: "SEO & Social Previews", icon: Share2, category: "dev", description: "Interactive Google SERP, Twitter Cards & OpenGraph live feed simulator, Schema.org generator & sitemaps", badge: "New", badgeColor: "bg-cyan-500/20 text-cyan-300" },
+  { id: "git-graph-studio", label: "Git Graph & Commits", icon: GitBranch, category: "dev", description: "Visual branch commit graph tree, conventional commit builder, branch merging & changelog exporter", badge: "New", badgeColor: "bg-blue-500/20 text-blue-300" },
+  { id: "json-schema-studio", label: "JSON Schema & Validator", icon: FileJson, category: "dev", description: "Live JSON Schema Draft 2020-12 validator, automatic schema inference, synthetic mock generator & Zod exporter", badge: "New", badgeColor: "bg-emerald-500/20 text-emerald-300" },
   { id: "network-har-studio", label: "Network HAR & Waterfall", icon: Globe, category: "dev", description: "HTTP Archive (HAR) inspector, network waterfalls, cURL-to-Fetch converter & latency injector", badge: "New", badgeColor: "bg-cyan-500/20 text-cyan-300" },
   { id: "tailwind-tokens-studio", label: "Tailwind Design Tokens", icon: Palette, category: "dev", description: "Visual design system architect, 50-950 shade generator, WCAG contrast auditor & UI sandbox", badge: "New", badgeColor: "bg-pink-500/20 text-pink-300" },
   { id: "cicd-architect", label: "CI/CD & GitHub Actions", icon: GitFork, category: "dev", description: "Automated pipeline architect, Docker build & Cloud Run deploy with dry-run simulator", badge: "New", badgeColor: "bg-emerald-500/20 text-emerald-300" },

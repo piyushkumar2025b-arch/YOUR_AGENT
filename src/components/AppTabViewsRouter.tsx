@@ -76,6 +76,10 @@ const CicdWorkflowArchitectAgent = safeLazy(() => import("./CicdWorkflowArchitec
 const JwtCryptoLabStudioAgent = safeLazy(() => import("./JwtCryptoLabStudioAgent"), "JwtCryptoLabStudioAgent");
 const NetworkTrafficHarStudioAgent = safeLazy(() => import("./NetworkTrafficHarStudioAgent"), "NetworkTrafficHarStudioAgent");
 const DesignTokensTailwindStudioAgent = safeLazy(() => import("./DesignTokensTailwindStudioAgent"), "DesignTokensTailwindStudioAgent");
+const GitBranchGraphStudioAgent = safeLazy(() => import("./GitBranchGraphStudioAgent"), "GitBranchGraphStudioAgent");
+const JsonSchemaValidatorStudioAgent = safeLazy(() => import("./JsonSchemaValidatorStudioAgent"), "JsonSchemaValidatorStudioAgent");
+const LoadStressBenchmarkStudioAgent = safeLazy(() => import("./LoadStressBenchmarkStudioAgent"), "LoadStressBenchmarkStudioAgent");
+const SeoMetaOpenGraphStudioAgent = safeLazy(() => import("./SeoMetaOpenGraphStudioAgent"), "SeoMetaOpenGraphStudioAgent");
 
 interface AppTabViewsRouterProps {
   activeTab: string;
@@ -1355,6 +1359,93 @@ export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = React.memo(({
       {activeTab === "tailwind-tokens-studio" && (
         <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
           <DesignTokensTailwindStudioAgent
+            files={files}
+            theme={theme}
+            onSaveFile={(path, content) => {
+              setFiles(prev => {
+                const exists = prev.some(f => f.path === path);
+                if (exists) {
+                  return prev.map(f => f.path === path ? { ...f, content, isUserCreated: true } : f);
+                }
+                const ext = path.split(".").pop() || "plaintext";
+                return [...prev, { path, content, language: ext, isFolder: false, isUserCreated: true }];
+              });
+              addAgentAction("create", `Created or updated ${path} in workspace`);
+            }}
+            onAddLog={(type, msg) => addAgentAction(type as any, msg)}
+          />
+        </div>
+      )}
+
+      {/* VIEW: GIT BRANCH GRAPH & COMMIT STUDIO */}
+      {activeTab === "git-graph-studio" && (
+        <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <GitBranchGraphStudioAgent
+            files={files}
+            theme={theme}
+            onSaveFile={(path, content) => {
+              setFiles(prev => {
+                const exists = prev.some(f => f.path === path);
+                if (exists) {
+                  return prev.map(f => f.path === path ? { ...f, content, isUserCreated: true } : f);
+                }
+                const ext = path.split(".").pop() || "plaintext";
+                return [...prev, { path, content, language: ext, isFolder: false, isUserCreated: true }];
+              });
+              addAgentAction("create", `Created or updated ${path} in workspace`);
+            }}
+            onAddLog={(type, msg) => addAgentAction(type as any, msg)}
+          />
+        </div>
+      )}
+
+      {/* VIEW: JSON SCHEMA ARCHITECT & VALIDATOR */}
+      {activeTab === "json-schema-studio" && (
+        <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <JsonSchemaValidatorStudioAgent
+            theme={theme}
+            onSaveFile={(path, content) => {
+              setFiles(prev => {
+                const exists = prev.some(f => f.path === path);
+                if (exists) {
+                  return prev.map(f => f.path === path ? { ...f, content, isUserCreated: true } : f);
+                }
+                const ext = path.split(".").pop() || "plaintext";
+                return [...prev, { path, content, language: ext, isFolder: false, isUserCreated: true }];
+              });
+              addAgentAction("create", `Created or updated ${path} in workspace`);
+            }}
+            onAddLog={(type, msg) => addAgentAction(type as any, msg)}
+          />
+        </div>
+      )}
+
+      {/* VIEW: LOAD & STRESS TESTING BENCHMARK STUDIO */}
+      {activeTab === "load-benchmark" && (
+        <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <LoadStressBenchmarkStudioAgent
+            files={files}
+            theme={theme}
+            onSaveFile={(path, content) => {
+              setFiles(prev => {
+                const exists = prev.some(f => f.path === path);
+                if (exists) {
+                  return prev.map(f => f.path === path ? { ...f, content, isUserCreated: true } : f);
+                }
+                const ext = path.split(".").pop() || "plaintext";
+                return [...prev, { path, content, language: ext, isFolder: false, isUserCreated: true }];
+              });
+              addAgentAction("create", `Created or updated ${path} in workspace`);
+            }}
+            onAddLog={(type, msg) => addAgentAction(type as any, msg)}
+          />
+        </div>
+      )}
+
+      {/* VIEW: SEO, OPENGRAPH & SERP STUDIO */}
+      {activeTab === "seo-studio" && (
+        <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <SeoMetaOpenGraphStudioAgent
             files={files}
             theme={theme}
             onSaveFile={(path, content) => {

@@ -212,6 +212,50 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
       }
     },
     {
+      id: "tab-load-benchmark",
+      category: "Dev Tools",
+      title: "Open Load & Stress Testing Benchmark",
+      description: "Real-time API load & stress testing, concurrency runner & k6/autocannon exporter",
+      keys: ["Ctrl", "Alt", "L"],
+      action: () => {
+        onSelectTab("load-benchmark");
+        triggerHudToast("🔥 Opened Load & Stress Benchmark");
+      }
+    },
+    {
+      id: "tab-seo-studio",
+      category: "Dev Tools",
+      title: "Open SEO & Social Previews Studio",
+      description: "Interactive Google SERP, Twitter Cards & OpenGraph live feed simulator & sitemaps",
+      keys: ["Ctrl", "Alt", "M"],
+      action: () => {
+        onSelectTab("seo-studio");
+        triggerHudToast("🌐 Opened SEO & Social Previews Studio");
+      }
+    },
+    {
+      id: "tab-git-graph-studio",
+      category: "Dev Tools",
+      title: "Open Git Graph & Commits Studio",
+      description: "Visual branch commit graph tree, conventional commit builder & changelog exporter",
+      keys: ["Ctrl", "Alt", "G"],
+      action: () => {
+        onSelectTab("git-graph-studio");
+        triggerHudToast("🌳 Opened Git Graph & Commits Studio");
+      }
+    },
+    {
+      id: "tab-json-schema-studio",
+      category: "Dev Tools",
+      title: "Open JSON Schema & Validator Studio",
+      description: "JSON Schema Draft 2020-12 validator, automatic schema inference & mock generator",
+      keys: ["Ctrl", "Alt", "K"],
+      action: () => {
+        onSelectTab("json-schema-studio");
+        triggerHudToast("📋 Opened JSON Schema & Validator Studio");
+      }
+    },
+    {
       id: "tab-network-har-studio",
       category: "Dev Tools",
       title: "Open Network HAR & Waterfall Studio",
