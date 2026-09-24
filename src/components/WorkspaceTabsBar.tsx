@@ -118,6 +118,8 @@ export const WORKSPACE_TABS: TabItem[] = [
   { id: "trending-repos", label: "Trending Repos", icon: Github, category: "web", description: "Explore trending open-source repositories on GitHub today" },
 
   // Dev Utilities & Tools
+  { id: "network-har-studio", label: "Network HAR & Waterfall", icon: Globe, category: "dev", description: "HTTP Archive (HAR) inspector, network waterfalls, cURL-to-Fetch converter & latency injector", badge: "New", badgeColor: "bg-cyan-500/20 text-cyan-300" },
+  { id: "tailwind-tokens-studio", label: "Tailwind Design Tokens", icon: Palette, category: "dev", description: "Visual design system architect, 50-950 shade generator, WCAG contrast auditor & UI sandbox", badge: "New", badgeColor: "bg-pink-500/20 text-pink-300" },
   { id: "cicd-architect", label: "CI/CD & GitHub Actions", icon: GitFork, category: "dev", description: "Automated pipeline architect, Docker build & Cloud Run deploy with dry-run simulator", badge: "New", badgeColor: "bg-emerald-500/20 text-emerald-300" },
   { id: "jwt-lab", label: "JWT & Crypto Lab", icon: Key, category: "dev", description: "Interactive JSON Web Token debugger, SHA/HMAC hash suite & AES-GCM 256-bit cipher", badge: "Pro", badgeColor: "bg-purple-500/20 text-purple-300" },
   { id: "erd-studio", label: "Database ERD Architect", icon: Database, category: "dev", description: "Interactive Entity Relationship Diagram (ERD) visual modeler, schema scanner & Drizzle ORM generator", badge: "New", badgeColor: "bg-blue-500/20 text-blue-300" },

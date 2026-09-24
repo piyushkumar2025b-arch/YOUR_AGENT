@@ -74,6 +74,8 @@ const DatabaseErdStudioAgent = safeLazy(() => import("./DatabaseErdStudioAgent")
 const CronSchedulerStudioAgent = safeLazy(() => import("./CronSchedulerStudioAgent"), "CronSchedulerStudioAgent");
 const CicdWorkflowArchitectAgent = safeLazy(() => import("./CicdWorkflowArchitectAgent"), "CicdWorkflowArchitectAgent");
 const JwtCryptoLabStudioAgent = safeLazy(() => import("./JwtCryptoLabStudioAgent"), "JwtCryptoLabStudioAgent");
+const NetworkTrafficHarStudioAgent = safeLazy(() => import("./NetworkTrafficHarStudioAgent"), "NetworkTrafficHarStudioAgent");
+const DesignTokensTailwindStudioAgent = safeLazy(() => import("./DesignTokensTailwindStudioAgent"), "DesignTokensTailwindStudioAgent");
 
 interface AppTabViewsRouterProps {
   activeTab: string;
@@ -1311,6 +1313,49 @@ export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = React.memo(({
       {activeTab === "jwt-lab" && (
         <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
           <JwtCryptoLabStudioAgent
+            theme={theme}
+            onSaveFile={(path, content) => {
+              setFiles(prev => {
+                const exists = prev.some(f => f.path === path);
+                if (exists) {
+                  return prev.map(f => f.path === path ? { ...f, content, isUserCreated: true } : f);
+                }
+                const ext = path.split(".").pop() || "plaintext";
+                return [...prev, { path, content, language: ext, isFolder: false, isUserCreated: true }];
+              });
+              addAgentAction("create", `Created or updated ${path} in workspace`);
+            }}
+            onAddLog={(type, msg) => addAgentAction(type as any, msg)}
+          />
+        </div>
+      )}
+
+      {/* VIEW: NETWORK TRAFFIC & HAR STUDIO */}
+      {activeTab === "network-har-studio" && (
+        <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <NetworkTrafficHarStudioAgent
+            theme={theme}
+            onSaveFile={(path, content) => {
+              setFiles(prev => {
+                const exists = prev.some(f => f.path === path);
+                if (exists) {
+                  return prev.map(f => f.path === path ? { ...f, content, isUserCreated: true } : f);
+                }
+                const ext = path.split(".").pop() || "plaintext";
+                return [...prev, { path, content, language: ext, isFolder: false, isUserCreated: true }];
+              });
+              addAgentAction("create", `Created or updated ${path} in workspace`);
+            }}
+            onAddLog={(type, msg) => addAgentAction(type as any, msg)}
+          />
+        </div>
+      )}
+
+      {/* VIEW: TAILWIND DESIGN TOKENS STUDIO */}
+      {activeTab === "tailwind-tokens-studio" && (
+        <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <DesignTokensTailwindStudioAgent
+            files={files}
             theme={theme}
             onSaveFile={(path, content) => {
               setFiles(prev => {

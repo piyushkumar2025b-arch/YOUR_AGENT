@@ -212,6 +212,28 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
       }
     },
     {
+      id: "tab-network-har-studio",
+      category: "Dev Tools",
+      title: "Open Network HAR & Waterfall Studio",
+      description: "HTTP Archive inspector, timing waterfalls, cURL-to-Fetch converter & mock injector",
+      keys: ["Ctrl", "Alt", "N"],
+      action: () => {
+        onSelectTab("network-har-studio");
+        triggerHudToast("🌐 Opened Network HAR & Traffic Studio");
+      }
+    },
+    {
+      id: "tab-tailwind-tokens-studio",
+      category: "Dev Tools",
+      title: "Open Tailwind Design Tokens Studio",
+      description: "Design system architect, 50-950 shade generator, WCAG contrast auditor & UI sandbox",
+      keys: ["Ctrl", "Alt", "T"],
+      action: () => {
+        onSelectTab("tailwind-tokens-studio");
+        triggerHudToast("🎨 Opened Tailwind Design Tokens Studio");
+      }
+    },
+    {
       id: "tab-cicd-architect",
       category: "Dev Tools",
       title: "Open CI/CD & GitHub Actions Architect",
