@@ -212,6 +212,28 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
       }
     },
     {
+      id: "tab-erd-studio",
+      category: "Dev Tools",
+      title: "Open Database ERD Architect",
+      description: "Entity Relationship Diagram visual modeler, schema scanner & Drizzle ORM generator",
+      keys: ["Ctrl", "Alt", "E"],
+      action: () => {
+        onSelectTab("erd-studio");
+        triggerHudToast("🗄️ Opened Database ERD Architect");
+      }
+    },
+    {
+      id: "tab-cron-studio",
+      category: "Dev Tools",
+      title: "Open Cron & Task Scheduler Studio",
+      description: "Visual cron expression builder, English translation engine & runner sandbox",
+      keys: ["Ctrl", "Alt", "C"],
+      action: () => {
+        onSelectTab("cron-studio");
+        triggerHudToast("⏰ Opened Cron & Task Scheduler Studio");
+      }
+    },
+    {
       id: "tab-openapi-studio",
       category: "Dev Tools",
       title: "Open OpenAPI & Swagger Studio",

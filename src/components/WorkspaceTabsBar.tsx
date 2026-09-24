@@ -61,7 +61,8 @@ import {
   Binary,
   GitCompare,
   FileCode2,
-  Radio
+  Radio,
+  Clock
 } from "lucide-react";
 
 export type ToolCategory = "core" | "music" | "ai" | "web" | "dev" | "data" | "media";
@@ -115,6 +116,8 @@ export const WORKSPACE_TABS: TabItem[] = [
   { id: "trending-repos", label: "Trending Repos", icon: Github, category: "web", description: "Explore trending open-source repositories on GitHub today" },
 
   // Dev Utilities & Tools
+  { id: "erd-studio", label: "Database ERD Architect", icon: Database, category: "dev", description: "Interactive Entity Relationship Diagram (ERD) visual modeler, schema scanner & Drizzle ORM generator", badge: "New", badgeColor: "bg-blue-500/20 text-blue-300" },
+  { id: "cron-studio", label: "Cron & Task Scheduler", icon: Clock, category: "dev", description: "Visual cron expression builder, English translation engine, schedule forecaster & runner sandbox", badge: "New", badgeColor: "bg-amber-500/20 text-amber-300" },
   { id: "openapi-studio", label: "OpenAPI & Swagger", icon: FileCode2, category: "dev", description: "Interactive OpenAPI 3.1 & Swagger visual architect, automated endpoint scanner & live API test bench", badge: "New", badgeColor: "bg-emerald-500/20 text-emerald-300" },
   { id: "stream-tester", label: "WebSocket & SSE Stream", icon: Radio, category: "dev", description: "Realtime WebSocket (WSS) & Server-Sent Events (SSE) live connection tester & mock feed emulator", badge: "Pro", badgeColor: "bg-purple-500/20 text-purple-300" },
   { id: "mock-server", label: "Mock API Server", icon: Server, category: "dev", description: "Configurable mock REST server with custom latency, status codes & webhook catcher", badge: "Pro", badgeColor: "bg-emerald-500/20 text-emerald-300" },

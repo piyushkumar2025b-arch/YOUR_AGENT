@@ -70,6 +70,8 @@ const DockerDevContainerStudioAgent = safeLazy(() => import("./DockerDevContaine
 const GraphQLExplorerStudioAgent = safeLazy(() => import("./GraphQLExplorerStudioAgent"), "GraphQLExplorerStudioAgent");
 const OpenApiStudioAgent = safeLazy(() => import("./OpenApiStudioAgent"), "OpenApiStudioAgent");
 const RealtimeStreamTesterAgent = safeLazy(() => import("./RealtimeStreamTesterAgent"), "RealtimeStreamTesterAgent");
+const DatabaseErdStudioAgent = safeLazy(() => import("./DatabaseErdStudioAgent"), "DatabaseErdStudioAgent");
+const CronSchedulerStudioAgent = safeLazy(() => import("./CronSchedulerStudioAgent"), "CronSchedulerStudioAgent");
 
 interface AppTabViewsRouterProps {
   activeTab: string;
@@ -1221,6 +1223,49 @@ export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = React.memo(({
         <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
           <RealtimeStreamTesterAgent
             apiKey={apiKey}
+            theme={theme}
+            onSaveFile={(path, content) => {
+              setFiles(prev => {
+                const exists = prev.some(f => f.path === path);
+                if (exists) {
+                  return prev.map(f => f.path === path ? { ...f, content, isUserCreated: true } : f);
+                }
+                const ext = path.split(".").pop() || "plaintext";
+                return [...prev, { path, content, language: ext, isFolder: false, isUserCreated: true }];
+              });
+              addAgentAction("create", `Created or updated ${path} in workspace`);
+            }}
+            onAddLog={(type, msg) => addAgentAction(type as any, msg)}
+          />
+        </div>
+      )}
+
+      {/* VIEW: DATABASE SCHEMA & ERD ARCHITECT */}
+      {activeTab === "erd-studio" && (
+        <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <DatabaseErdStudioAgent
+            files={files}
+            theme={theme}
+            onSaveFile={(path, content) => {
+              setFiles(prev => {
+                const exists = prev.some(f => f.path === path);
+                if (exists) {
+                  return prev.map(f => f.path === path ? { ...f, content, isUserCreated: true } : f);
+                }
+                const ext = path.split(".").pop() || "plaintext";
+                return [...prev, { path, content, language: ext, isFolder: false, isUserCreated: true }];
+              });
+              addAgentAction("create", `Created or updated ${path} in workspace`);
+            }}
+            onAddLog={(type, msg) => addAgentAction(type as any, msg)}
+          />
+        </div>
+      )}
+
+      {/* VIEW: CRON & TASK SCHEDULER STUDIO */}
+      {activeTab === "cron-studio" && (
+        <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <CronSchedulerStudioAgent
             theme={theme}
             onSaveFile={(path, content) => {
               setFiles(prev => {
