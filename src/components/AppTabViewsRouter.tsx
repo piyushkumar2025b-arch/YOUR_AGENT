@@ -72,6 +72,8 @@ const OpenApiStudioAgent = safeLazy(() => import("./OpenApiStudioAgent"), "OpenA
 const RealtimeStreamTesterAgent = safeLazy(() => import("./RealtimeStreamTesterAgent"), "RealtimeStreamTesterAgent");
 const DatabaseErdStudioAgent = safeLazy(() => import("./DatabaseErdStudioAgent"), "DatabaseErdStudioAgent");
 const CronSchedulerStudioAgent = safeLazy(() => import("./CronSchedulerStudioAgent"), "CronSchedulerStudioAgent");
+const CicdWorkflowArchitectAgent = safeLazy(() => import("./CicdWorkflowArchitectAgent"), "CicdWorkflowArchitectAgent");
+const JwtCryptoLabStudioAgent = safeLazy(() => import("./JwtCryptoLabStudioAgent"), "JwtCryptoLabStudioAgent");
 
 interface AppTabViewsRouterProps {
   activeTab: string;
@@ -1266,6 +1268,49 @@ export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = React.memo(({
       {activeTab === "cron-studio" && (
         <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
           <CronSchedulerStudioAgent
+            theme={theme}
+            onSaveFile={(path, content) => {
+              setFiles(prev => {
+                const exists = prev.some(f => f.path === path);
+                if (exists) {
+                  return prev.map(f => f.path === path ? { ...f, content, isUserCreated: true } : f);
+                }
+                const ext = path.split(".").pop() || "plaintext";
+                return [...prev, { path, content, language: ext, isFolder: false, isUserCreated: true }];
+              });
+              addAgentAction("create", `Created or updated ${path} in workspace`);
+            }}
+            onAddLog={(type, msg) => addAgentAction(type as any, msg)}
+          />
+        </div>
+      )}
+
+      {/* VIEW: CI/CD & GITHUB ACTIONS ARCHITECT */}
+      {activeTab === "cicd-architect" && (
+        <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <CicdWorkflowArchitectAgent
+            files={files}
+            theme={theme}
+            onSaveFile={(path, content) => {
+              setFiles(prev => {
+                const exists = prev.some(f => f.path === path);
+                if (exists) {
+                  return prev.map(f => f.path === path ? { ...f, content, isUserCreated: true } : f);
+                }
+                const ext = path.split(".").pop() || "plaintext";
+                return [...prev, { path, content, language: ext, isFolder: false, isUserCreated: true }];
+              });
+              addAgentAction("create", `Created or updated ${path} in workspace`);
+            }}
+            onAddLog={(type, msg) => addAgentAction(type as any, msg)}
+          />
+        </div>
+      )}
+
+      {/* VIEW: JWT & CRYPTO LAB STUDIO */}
+      {activeTab === "jwt-lab" && (
+        <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <JwtCryptoLabStudioAgent
             theme={theme}
             onSaveFile={(path, content) => {
               setFiles(prev => {

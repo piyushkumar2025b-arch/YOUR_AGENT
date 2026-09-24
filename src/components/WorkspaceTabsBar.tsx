@@ -62,7 +62,9 @@ import {
   GitCompare,
   FileCode2,
   Radio,
-  Clock
+  Clock,
+  GitFork,
+  Key
 } from "lucide-react";
 
 export type ToolCategory = "core" | "music" | "ai" | "web" | "dev" | "data" | "media";
@@ -116,6 +118,8 @@ export const WORKSPACE_TABS: TabItem[] = [
   { id: "trending-repos", label: "Trending Repos", icon: Github, category: "web", description: "Explore trending open-source repositories on GitHub today" },
 
   // Dev Utilities & Tools
+  { id: "cicd-architect", label: "CI/CD & GitHub Actions", icon: GitFork, category: "dev", description: "Automated pipeline architect, Docker build & Cloud Run deploy with dry-run simulator", badge: "New", badgeColor: "bg-emerald-500/20 text-emerald-300" },
+  { id: "jwt-lab", label: "JWT & Crypto Lab", icon: Key, category: "dev", description: "Interactive JSON Web Token debugger, SHA/HMAC hash suite & AES-GCM 256-bit cipher", badge: "Pro", badgeColor: "bg-purple-500/20 text-purple-300" },
   { id: "erd-studio", label: "Database ERD Architect", icon: Database, category: "dev", description: "Interactive Entity Relationship Diagram (ERD) visual modeler, schema scanner & Drizzle ORM generator", badge: "New", badgeColor: "bg-blue-500/20 text-blue-300" },
   { id: "cron-studio", label: "Cron & Task Scheduler", icon: Clock, category: "dev", description: "Visual cron expression builder, English translation engine, schedule forecaster & runner sandbox", badge: "New", badgeColor: "bg-amber-500/20 text-amber-300" },
   { id: "openapi-studio", label: "OpenAPI & Swagger", icon: FileCode2, category: "dev", description: "Interactive OpenAPI 3.1 & Swagger visual architect, automated endpoint scanner & live API test bench", badge: "New", badgeColor: "bg-emerald-500/20 text-emerald-300" },

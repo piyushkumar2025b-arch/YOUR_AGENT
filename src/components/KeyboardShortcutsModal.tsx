@@ -212,6 +212,28 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
       }
     },
     {
+      id: "tab-cicd-architect",
+      category: "Dev Tools",
+      title: "Open CI/CD & GitHub Actions Architect",
+      description: "Pipeline architect, Docker build & Cloud Run deploy with dry-run simulator",
+      keys: ["Ctrl", "Alt", "I"],
+      action: () => {
+        onSelectTab("cicd-architect");
+        triggerHudToast("🚀 Opened CI/CD & GitHub Actions Architect");
+      }
+    },
+    {
+      id: "tab-jwt-lab",
+      category: "Dev Tools",
+      title: "Open JWT & Crypto Laboratory",
+      description: "JSON Web Token debugger, WebCrypto SHA/HMAC hash suite & AES-GCM cipher",
+      keys: ["Ctrl", "Alt", "J"],
+      action: () => {
+        onSelectTab("jwt-lab");
+        triggerHudToast("🔐 Opened JWT & Crypto Lab");
+      }
+    },
+    {
       id: "tab-erd-studio",
       category: "Dev Tools",
       title: "Open Database ERD Architect",
