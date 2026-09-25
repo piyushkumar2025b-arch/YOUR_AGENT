@@ -174,53 +174,46 @@ export default function LoadStressBenchmarkStudioAgent({
           headersObj = { "Content-Type": "application/json" };
         }
 
-        // Simulate internal mock latency if local route or execute real fetch
         let status = 200;
-        let size = 128;
         let success = true;
+        let size = 128;
 
-        if (targetUrl.startsWith("/") || targetUrl.includes("localhost") || targetUrl.includes("127.0.0.1")) {
-          // Internal endpoint benchmark or simulate local mock server response
-          const simulatedLatency = Math.floor(15 + Math.random() * 45 + (profile === "stress" ? Math.random() * 60 : 0));
-          await new Promise(r => setTimeout(r, simulatedLatency));
-          status = Math.random() < 0.985 ? 200 : (Math.random() < 0.5 ? 429 : 503);
-          success = status >= 200 && status < 400;
-          size = 256 + Math.floor(Math.random() * 512);
-        } else {
-          // External network fetch: route through proxy to prevent browser CORS "Failed to fetch"
-          const proxyUrl = targetUrl.startsWith("http")
-            ? `/api/proxy?url=${encodeURIComponent(targetUrl)}`
-            : targetUrl;
+        // Execute REAL network fetch!
+        const fetchUrl = targetUrl.startsWith("/")
+          ? targetUrl
+          : (targetUrl.startsWith("http") ? `/api/proxy?url=${encodeURIComponent(targetUrl)}` : targetUrl);
 
-          // Individual request abort controller with timeout
-          const reqController = new AbortController();
-          const reqTimeout = setTimeout(() => {
-            try { reqController.abort("Per-request timeout exceeded"); } catch {}
-          }, timeoutMs);
+        // Individual request abort controller with timeout
+        const reqController = new AbortController();
+        const reqTimeout = setTimeout(() => {
+          try { reqController.abort("Per-request timeout exceeded"); } catch {}
+        }, timeoutMs);
 
-          const onGlobalAbort = () => {
-            try { reqController.abort("Benchmark terminated"); } catch {}
-          };
-          signal.addEventListener("abort", onGlobalAbort, { once: true });
+        const onGlobalAbort = () => {
+          try { reqController.abort("Benchmark terminated"); } catch {}
+        };
+        signal.addEventListener("abort", onGlobalAbort, { once: true });
 
-          try {
-            const res = await fetch(proxyUrl, {
-              method: httpMethod,
-              headers: headersObj,
-              body: httpMethod !== "GET" ? requestBody : undefined,
-              signal: reqController.signal
-            });
-            clearTimeout(reqTimeout);
-            signal.removeEventListener("abort", onGlobalAbort);
-            status = res.status;
-            success = res.ok;
-            const text = await res.text().catch(() => "");
-            size = text.length;
-          } catch (reqErr: any) {
-            clearTimeout(reqTimeout);
-            signal.removeEventListener("abort", onGlobalAbort);
-            throw reqErr;
-          }
+        try {
+          const res = await fetch(fetchUrl, {
+            method: httpMethod,
+            headers: headersObj,
+            body: httpMethod !== "GET" ? requestBody : undefined,
+            signal: reqController.signal
+          });
+          clearTimeout(reqTimeout);
+          signal.removeEventListener("abort", onGlobalAbort);
+          status = res.status;
+          success = res.ok;
+          const text = await res.text().catch(() => "");
+          size = text.length;
+        } catch (reqErr: any) {
+          clearTimeout(reqTimeout);
+          signal.removeEventListener("abort", onGlobalAbort);
+          if (signal.aborted) break;
+          status = 503;
+          success = false;
+          size = 0;
         }
 
         const duration = Math.round(performance.now() - reqStart);

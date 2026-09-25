@@ -54,6 +54,73 @@ function base64UrlDecode(str: string): string {
   return decodeURIComponent(escape(atob(output)));
 }
 
+function bufferToBase64Url(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function signJwtToken(headerJson: string, payloadJson: string, secret: string): Promise<string> {
+  const hB64 = base64UrlEncode(headerJson);
+  const pB64 = base64UrlEncode(payloadJson);
+  const dataToSign = `${hB64}.${pB64}`;
+
+  let alg = "HS256";
+  try {
+    const parsedHeader = JSON.parse(headerJson);
+    if (parsedHeader.alg) alg = parsedHeader.alg;
+  } catch {}
+
+  if (alg === "none") {
+    return `${dataToSign}.`;
+  }
+
+  const hashName = alg === "HS512" ? "SHA-512" : alg === "HS384" ? "SHA-384" : "SHA-256";
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret || "secret"),
+    { name: "HMAC", hash: hashName },
+    false,
+    ["sign"]
+  );
+  const sigBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(dataToSign));
+  const sigB64 = bufferToBase64Url(sigBuffer);
+  return `${dataToSign}.${sigB64}`;
+}
+
+async function verifyJwtToken(token: string, secret: string): Promise<{ valid: boolean; reason?: string }> {
+  const parts = token.trim().split(".");
+  if (parts.length !== 3) return { valid: false, reason: "JWT must contain 3 segments (header.payload.signature)" };
+  try {
+    const header = JSON.parse(base64UrlDecode(parts[0]));
+    const alg = header.alg || "HS256";
+    if (alg === "none") return { valid: parts[2] === "", reason: parts[2] === "" ? undefined : "Unsigned token expected" };
+
+    const hashName = alg === "HS512" ? "SHA-512" : alg === "HS384" ? "SHA-384" : "SHA-256";
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(secret || "secret"),
+      { name: "HMAC", hash: hashName },
+      false,
+      ["sign"]
+    );
+    const dataToSign = `${parts[0]}.${parts[1]}`;
+    const sigBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(dataToSign));
+    const expectedSig = bufferToBase64Url(sigBuffer);
+    if (parts[2] === expectedSig) {
+      return { valid: true };
+    }
+    return { valid: false, reason: "Signature mismatch with current secret" };
+  } catch (e: any) {
+    return { valid: false, reason: e.message || "Failed to verify signature" };
+  }
+}
+
 // Generate default sample JWT
 const DEFAULT_HEADER = JSON.stringify({ alg: "HS256", typ: "JWT" }, null, 2);
 const DEFAULT_PAYLOAD = JSON.stringify(
@@ -115,20 +182,28 @@ export const JwtCryptoLabStudioAgent: React.FC<JwtCryptoLabStudioAgentProps> = (
 
   // Re-encode JWT when Header/Payload changes
   useEffect(() => {
-    try {
-      const hB64 = base64UrlEncode(jwtHeaderJson);
-      const pB64 = base64UrlEncode(jwtPayloadJson);
-      // Simulated HMAC signature representation
-      const pseudoSig = base64UrlEncode(`${hB64}.${pB64}.${jwtSecret}`).substring(0, 43);
-      setEncodedJwt(`${hB64}.${pB64}.${pseudoSig}`);
-      setIsSignatureValid(true);
-    } catch { }
+    let isMounted = true;
+    async function updateSignedJwt() {
+      try {
+        const token = await signJwtToken(jwtHeaderJson, jwtPayloadJson, jwtSecret);
+        if (isMounted) {
+          setEncodedJwt(token);
+          setIsSignatureValid(true);
+        }
+      } catch (err) {
+        // Fallback gracefully if JSON is currently being edited
+      }
+    }
+    updateSignedJwt();
+    return () => {
+      isMounted = false;
+    };
   }, [jwtHeaderJson, jwtPayloadJson, jwtSecret]);
 
   // Decode JWT when user edits the raw encoded string
-  const handleDecodeRawJwt = (raw: string) => {
+  const handleDecodeRawJwt = async (raw: string) => {
     setEncodedJwt(raw);
-    const parts = raw.split(".");
+    const parts = raw.trim().split(".");
     if (parts.length >= 2) {
       try {
         const decodedH = base64UrlDecode(parts[0]);
@@ -136,12 +211,18 @@ export const JwtCryptoLabStudioAgent: React.FC<JwtCryptoLabStudioAgentProps> = (
         setJwtHeaderJson(JSON.stringify(JSON.parse(decodedH), null, 2));
         setJwtPayloadJson(JSON.stringify(JSON.parse(decodedP), null, 2));
 
-        // Check signature
-        if (parts[2]) {
-          const expectedSig = base64UrlEncode(`${parts[0]}.${parts[1]}.${jwtSecret}`).substring(0, 43);
-          setIsSignatureValid(parts[2] === expectedSig || jwtSecret === DEFAULT_SECRET);
+        // Real cryptographic signature verification
+        if (parts.length === 3) {
+          const result = await verifyJwtToken(raw, jwtSecret);
+          setIsSignatureValid(result.valid);
+        } else {
+          setIsSignatureValid(false);
         }
-      } catch { }
+      } catch {
+        setIsSignatureValid(false);
+      }
+    } else {
+      setIsSignatureValid(false);
     }
   };
 

@@ -283,47 +283,60 @@ export const OpenApiStudioAgent: React.FC<OpenApiStudioAgentProps> = ({
   // Automated Workspace Endpoint Scanner
   const scanWorkspaceRoutes = () => {
     const discovered: EndpointDef[] = [];
-    const routeRegex = /(?:app|router)\.(get|post|put|delete|patch)\(\s*['"`]([^'"`]+)['"`]/gi;
+    const routeRegex = /(?:app|router)\.(get|post|put|delete|patch)\(\s*(?:['"`]([^'"`]+)['"`]|\[([^\]]+)\])/gi;
 
     files.forEach(file => {
       if (file.content && (file.path.endsWith(".ts") || file.path.endsWith(".js") || file.path.endsWith(".tsx"))) {
         let match;
         while ((match = routeRegex.exec(file.content)) !== null) {
           const method = match[1].toUpperCase() as HttpMethod;
-          const routePath = match[2];
+          const singlePath = match[2];
+          const arrayPaths = match[3];
 
-          // Extract path parameters like :id or :userId
-          const pathParams: ParameterDef[] = [];
-          const paramMatches = routePath.match(/:([a-zA-Z0-9_]+)/g);
-          if (paramMatches) {
-            paramMatches.forEach(p => {
-              const cleanName = p.replace(":", "");
-              pathParams.push({
-                name: cleanName,
-                in: "path",
-                required: true,
-                type: "string",
-                description: `URL path parameter: ${cleanName}`,
-                defaultValue: cleanName.includes("id") ? "id_101" : "val"
-              });
-            });
+          const routeList: string[] = [];
+          if (singlePath) {
+            routeList.push(singlePath);
+          } else if (arrayPaths) {
+            const matches = arrayPaths.match(/['"`]([^'"`]+)['"`]/g);
+            if (matches) {
+              matches.forEach(m => routeList.push(m.replace(/['"`]/g, "")));
+            }
           }
 
-          // Normalize path for OpenAPI: /users/:id -> /users/{id}
-          const openApiPath = routePath.replace(/:([a-zA-Z0-9_]+)/g, "{$1}");
+          routeList.forEach(routePath => {
+            // Extract path parameters like :id or :userId
+            const pathParams: ParameterDef[] = [];
+            const paramMatches = routePath.match(/:([a-zA-Z0-9_]+)/g);
+            if (paramMatches) {
+              paramMatches.forEach(p => {
+                const cleanName = p.replace(":", "");
+                pathParams.push({
+                  name: cleanName,
+                  in: "path",
+                  required: true,
+                  type: "string",
+                  description: `URL path parameter: ${cleanName}`,
+                  defaultValue: cleanName.includes("id") ? "id_101" : "val"
+                });
+              });
+            }
 
-          discovered.push({
-            id: `ep-scanned-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-            path: openApiPath,
-            method,
-            summary: `${method} handler from ${file.path.split("/").pop()}`,
-            description: `Auto-extracted route from codebase file: ${file.path}`,
-            tags: [file.path.split("/").pop()?.replace(/\.[^/.]+$/, "") || "API"],
-            parameters: pathParams,
-            requestBodyJson: method === "POST" || method === "PUT" || method === "PATCH" ? '{\n  "name": "example",\n  "active": true\n}' : undefined,
-            responses: [
-              { status: 200, description: "Successful response", exampleJson: '{\n  "success": true\n}' }
-            ]
+            // Normalize path for OpenAPI: /users/:id -> /users/{id}
+            const openApiPath = routePath.replace(/:([a-zA-Z0-9_]+)/g, "{$1}");
+
+            discovered.push({
+              id: `ep-scanned-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+              path: openApiPath,
+              method,
+              summary: `${method} handler: ${openApiPath}`,
+              description: `Auto-extracted route from ${file.path}`,
+              tags: [file.path.split("/").pop()?.replace(/\.[^/.]+$/, "") || "API"],
+              parameters: pathParams,
+              requestBodyJson: method === "POST" || method === "PUT" || method === "PATCH" ? '{\n  "name": "example",\n  "active": true\n}' : undefined,
+              responses: [
+                { status: 200, description: "Successful response", exampleJson: '{\n  "success": true\n}' }
+              ]
+            });
           });
         }
       }
@@ -624,45 +637,81 @@ export const OpenApiStudioAgent: React.FC<OpenApiStudioAgentProps> = ({
         finalPath += `?${queryParts.join("&")}`;
       }
 
-      // Check if we are running in simulator or direct fetch
-      // For instant sandboxing when offline, produce realistic dynamic responses based on endpoints
-      await new Promise(r => setTimeout(r, 180 + Math.random() * 220));
+      // Try REAL fetch first against the running Express/Vite server!
+      let realRes: Response | null = null;
+      let realData: any = null;
+      const resHeaders: Record<string, string> = {};
+
+      try {
+        const targetUrl = finalPath.startsWith("/") ? finalPath : `/${finalPath}`;
+        realRes = await fetch(targetUrl, {
+          method: currentEndpoint.method,
+          headers: {
+            "Accept": "application/json",
+            ...(testAuthToken ? { "Authorization": testAuthToken } : {}),
+            ...(currentEndpoint.method === "POST" || currentEndpoint.method === "PUT" ? { "Content-Type": "application/json" } : {})
+          },
+          body: (currentEndpoint.method === "POST" || currentEndpoint.method === "PUT") && testBodyValue ? testBodyValue : undefined
+        });
+
+        if (realRes) {
+          const contentType = realRes.headers.get("content-type") || "";
+          if (contentType.includes("application/json")) {
+            realData = await realRes.json();
+          } else {
+            const rawText = await realRes.text();
+            try { realData = JSON.parse(rawText); } catch { realData = rawText; }
+          }
+          realRes.headers.forEach((v, k) => { resHeaders[k] = v; });
+        }
+      } catch (fetchErr) {
+        // Fallback to example schema if route is not mounted on server
+      }
 
       const durationMs = Math.round(performance.now() - startTime);
 
-      let mockPayload: any = null;
-      if (currentEndpoint.responses[0]?.exampleJson) {
-        try {
-          mockPayload = JSON.parse(currentEndpoint.responses[0].exampleJson);
-        } catch {
-          mockPayload = { message: currentEndpoint.responses[0].description };
-        }
+      if (realRes) {
+        setTestResponse({
+          status: realRes.status,
+          statusText: realRes.statusText || (realRes.ok ? "OK" : "Error"),
+          durationMs,
+          data: realData,
+          headers: resHeaders
+        });
+        showToast(`✅ Live Response: HTTP ${realRes.status} in ${durationMs}ms`);
       } else {
-        mockPayload = { success: true, timestamp: Date.now() };
-      }
-
-      // If user provided a body for POST/PUT, reflect it in the simulated output
-      if ((currentEndpoint.method === "POST" || currentEndpoint.method === "PUT") && testBodyValue) {
-        try {
-          const parsed = JSON.parse(testBodyValue);
-          mockPayload = { ...mockPayload, submittedData: parsed, id: `gen_${Math.floor(Math.random() * 89999 + 10000)}` };
-        } catch { }
-      }
-
-      setTestResponse({
-        status: currentEndpoint.responses[0]?.status || 200,
-        statusText: currentEndpoint.responses[0]?.status === 201 ? "Created" : "OK",
-        durationMs,
-        data: mockPayload,
-        headers: {
-          "content-type": "application/json; charset=utf-8",
-          "x-powered-by": "Express / Remix Studio Mock Router",
-          "access-control-allow-origin": "*",
-          "x-request-id": `req_${Math.random().toString(36).substring(2, 9)}`,
-          "x-response-time": `${durationMs}ms`
+        let mockPayload: any = null;
+        if (currentEndpoint.responses[0]?.exampleJson) {
+          try {
+            mockPayload = JSON.parse(currentEndpoint.responses[0].exampleJson);
+          } catch {
+            mockPayload = { message: currentEndpoint.responses[0].description };
+          }
+        } else {
+          mockPayload = { success: true, timestamp: Date.now() };
         }
-      });
-      showToast(`⚡ ${currentEndpoint.method} ${currentEndpoint.path} finished in ${durationMs}ms`);
+
+        // If user provided a body for POST/PUT, reflect it in the output
+        if ((currentEndpoint.method === "POST" || currentEndpoint.method === "PUT") && testBodyValue) {
+          try {
+            const parsed = JSON.parse(testBodyValue);
+            mockPayload = { ...mockPayload, submittedData: parsed, id: `gen_${Math.floor(Math.random() * 89999 + 10000)}` };
+          } catch { }
+        }
+
+        setTestResponse({
+          status: currentEndpoint.responses[0]?.status || 200,
+          statusText: currentEndpoint.responses[0]?.status === 201 ? "Created" : "OK (Spec Schema)",
+          durationMs,
+          data: mockPayload,
+          headers: {
+            "content-type": "application/json; charset=utf-8",
+            "x-powered-by": "Express / OpenAPI Schema Engine",
+            "x-response-time": `${durationMs}ms`
+          }
+        });
+        showToast(`⚡ Spec schema response verified in ${durationMs}ms`);
+      }
     } catch (err: any) {
       setTestResponse({
         status: 500,

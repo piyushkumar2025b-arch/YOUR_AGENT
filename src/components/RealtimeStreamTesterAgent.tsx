@@ -65,8 +65,8 @@ export const RealtimeStreamTesterAgent: React.FC<RealtimeStreamTesterAgentProps>
   onSaveFile,
   onAddLog
 }) => {
-  const [protocol, setProtocol] = useState<StreamProtocol>("simulation");
-  const [endpointUrl, setEndpointUrl] = useState<string>("sim://local-feed");
+  const [protocol, setProtocol] = useState<StreamProtocol>("websocket");
+  const [endpointUrl, setEndpointUrl] = useState<string>("wss://echo.websocket.events");
   const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connecting" | "connected" | "error">("disconnected");
   const [packets, setPackets] = useState<PacketMessage[]>([]);
   const [searchFilter, setSearchFilter] = useState<string>("");

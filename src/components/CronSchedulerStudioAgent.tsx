@@ -41,52 +41,63 @@ export interface ScheduledTask {
   lastRunAt?: number;
   durationMs?: number;
   runCount: number;
+  taskType?: "http" | "script" | "health";
+  endpoint?: string;
+  scriptCode?: string;
 }
 
 const DEFAULT_TASKS: ScheduledTask[] = [
   {
     id: "task-1",
-    name: "Database Snapshot Backup",
-    cronExpr: "0 2 * * *",
-    description: "Generates compressed PostgreSQL WAL archive & uploads to secure cloud bucket",
-    handlerName: "executeDatabaseBackup",
+    name: "API Health & Uptime Ping",
+    cronExpr: "*/5 * * * *",
+    description: "Pings server-side health status, database connection, and system uptime",
+    handlerName: "executeHealthCheck",
+    taskType: "http",
+    endpoint: "/api/health",
     status: "idle",
     runCount: 14,
     lastRunAt: Date.now() - 3600000 * 5,
-    durationMs: 420
+    durationMs: 42
   },
   {
     id: "task-2",
-    name: "Session Cache & Token Purge",
+    name: "Live Crypto Market Feed Sync",
     cronExpr: "*/15 * * * *",
-    description: "Clears expired OAuth tokens, unverified signups and stale Redis sessions",
-    handlerName: "purgeExpiredSessions",
+    description: "Fetches live cryptocurrency prices (BTC, ETH, SOL) via CoinGecko proxy",
+    handlerName: "syncCryptoMarketPrices",
+    taskType: "http",
+    endpoint: "/api/crypto/live",
     status: "idle",
     runCount: 88,
     lastRunAt: Date.now() - 60000 * 8,
-    durationMs: 110
+    durationMs: 95
   },
   {
     id: "task-3",
-    name: "Stripe Billing & Invoice Sync",
+    name: "Global Forex & Currency Exchange",
     cronExpr: "0 * * * *",
-    description: "Reconciles subscription tiers, metered usage limits and webhook retries",
-    handlerName: "reconcileStripeBilling",
+    description: "Updates latest EUR, GBP, JPY, and USD fiat currency exchange rates",
+    handlerName: "syncForexExchangeRates",
+    taskType: "http",
+    endpoint: "/api/forex/latest",
     status: "idle",
     runCount: 24,
     lastRunAt: Date.now() - 3600000,
-    durationMs: 680
+    durationMs: 110
   },
   {
     id: "task-4",
-    name: "Security Vulnerability AST Audit",
+    name: "Client Heap & Cache Sanitation",
     cronExpr: "0 0 * * 0",
-    description: "Scans project packages for known CVEs and outdated transitive dependencies",
-    handlerName: "runSecurityScan",
+    description: "Evaluates memory consumption, trims storage caches, and validates integrity",
+    handlerName: "runClientCacheSanitation",
+    taskType: "script",
+    scriptCode: "const memory = (window.performance && (window.performance as any).memory) ? Math.round((window.performance as any).memory.usedJSHeapSize / 1048576) : 28; return { status: 'healthy', usedHeapMb: memory, timestamp: Date.now() };",
     status: "idle",
     runCount: 3,
     lastRunAt: Date.now() - 3600000 * 24 * 3,
-    durationMs: 1450
+    durationMs: 15
   }
 ];
 
@@ -253,37 +264,63 @@ export const CronSchedulerStudioAgent: React.FC<CronSchedulerStudioAgentProps> =
     return calculateNextRuns(cronInput, 6);
   }, [cronInput]);
 
-  // Execute Simulated Task Run
-  const handleRunTaskNow = (task: ScheduledTask) => {
+  // Execute Real Task Run
+  const handleRunTaskNow = async (task: ScheduledTask) => {
     setTasks(prev => prev.map(t => (t.id === task.id ? { ...t, status: "running" } : t)));
-    showToast(`⚡ Triggered task "${task.name}"...`);
+    showToast(`⚡ Executing "${task.name}"...`);
 
     const startTime = performance.now();
-    setTimeout(() => {
-      const durationMs = Math.round(performance.now() - startTime + 80 + Math.random() * 180);
-      setTasks(prev =>
-        prev.map(t =>
-          t.id === task.id
-            ? { ...t, status: "success", lastRunAt: Date.now(), durationMs, runCount: t.runCount + 1 }
-            : t
-        )
-      );
+    let status: "success" | "failed" = "success";
+    let message = "";
 
-      setExecutionLogs(prev => [
-        {
-          id: `log-${Date.now()}`,
-          time: new Date().toLocaleTimeString(),
-          taskName: task.name,
-          status: "success",
-          durationMs,
-          message: `Executed handler ${task.handlerName}() with exit code 0`
-        },
-        ...prev
-      ]);
+    try {
+      if (task.endpoint || task.taskType === "http") {
+        const url = task.endpoint || "/api/health";
+        const res = await fetch(url);
+        const data = await res.json().catch(() => ({ status: "ok" }));
+        const durationMs = Math.round(performance.now() - startTime);
+        const summary = JSON.stringify(data).slice(0, 120);
+        message = `HTTP ${res.status} ${res.statusText} (${durationMs}ms) — ${summary}`;
+        status = res.ok ? "success" : "failed";
+      } else if (task.taskType === "script" && task.scriptCode) {
+        const func = new Function(task.scriptCode);
+        const result = func();
+        const durationMs = Math.round(performance.now() - startTime);
+        message = `Script evaluated successfully (${durationMs}ms) — Output: ${JSON.stringify(result) || "undefined"}`;
+      } else {
+        const res = await fetch("/api/health");
+        const data = await res.json().catch(() => ({ status: "healthy" }));
+        const durationMs = Math.round(performance.now() - startTime);
+        message = `Health check verified: ${data.status || "healthy"} (${durationMs}ms)`;
+      }
+    } catch (err: any) {
+      status = "failed";
+      message = `Execution error: ${err.message || "Failed to execute handler"}`;
+    }
 
-      showToast(`Completed "${task.name}" in ${durationMs}ms`);
-      if (onAddLog) onAddLog("execute", `Cron task ${task.name} executed successfully (${durationMs}ms).`);
-    }, 400);
+    const durationMs = Math.round(performance.now() - startTime);
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === task.id
+          ? { ...t, status, lastRunAt: Date.now(), durationMs, runCount: t.runCount + 1 }
+          : t
+      )
+    );
+
+    setExecutionLogs(prev => [
+      {
+        id: `log-${Date.now()}`,
+        time: new Date().toLocaleTimeString(),
+        taskName: task.name,
+        status,
+        durationMs,
+        message
+      },
+      ...prev
+    ]);
+
+    showToast(`${status === "success" ? "✅ Completed" : "❌ Failed"} "${task.name}" in ${durationMs}ms`);
+    if (onAddLog) onAddLog("execute", `Cron task ${task.name}: ${message}`);
   };
 
   // Generated Node.js node-cron code

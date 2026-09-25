@@ -280,6 +280,93 @@ export const DatabaseErdStudioAgent: React.FC<DatabaseErdStudioAgentProps> = ({
             });
           }
         }
+
+        // Support Prisma models: model User { id String @id ... }
+        if (f.content && f.path.endsWith(".prisma")) {
+          const prismaModelRegex = /model\s+([a-zA-Z0-9_]+)\s*\{([\s\S]*?)\}/gi;
+          let pMatch;
+          while ((pMatch = prismaModelRegex.exec(f.content)) !== null) {
+            const modelName = pMatch[1];
+            const body = pMatch[2];
+            const pLines = body.split("\n").map(l => l.trim()).filter(l => l && !l.startsWith("//"));
+            const pCols: ColumnDef[] = [];
+            pLines.forEach((pLine, idx) => {
+              const tokens = pLine.split(/\s+/);
+              if (tokens.length >= 2) {
+                const cName = tokens[0];
+                const cType = tokens[1];
+                let mappedType: SqlDataType = "VARCHAR(255)";
+                if (cType.includes("Int")) mappedType = "INT";
+                else if (cType.includes("BigInt")) mappedType = "BIGINT";
+                else if (cType.includes("Boolean")) mappedType = "BOOLEAN";
+                else if (cType.includes("DateTime")) mappedType = "TIMESTAMP";
+                else if (cType.includes("Json")) mappedType = "JSONB";
+                else if (cType.includes("Decimal") || cType.includes("Float")) mappedType = "DECIMAL(10,2)";
+                else if (cType.includes("String") && pLine.includes("@id")) mappedType = "UUID";
+                else if (cType.includes("String") && pLine.includes("@db.Text")) mappedType = "TEXT";
+
+                pCols.push({
+                  id: `col-p-${modelName}-${idx}`,
+                  name: cName,
+                  type: mappedType,
+                  isPrimary: pLine.includes("@id"),
+                  isNullable: cType.endsWith("?"),
+                  isUnique: pLine.includes("@unique")
+                });
+              }
+            });
+            if (pCols.length > 0) {
+              discovered.push({
+                id: `tbl-${modelName.toLowerCase()}`,
+                name: modelName.toLowerCase(),
+                color: "sky",
+                comment: `Prisma model from ${f.path}`,
+                columns: pCols
+              });
+            }
+          }
+        }
+
+        // Support Drizzle pgTable('users', { id: text('id').primaryKey(), ... })
+        if (f.content && (f.path.includes("schema") || f.path.endsWith(".ts"))) {
+          const drizzleTableRegex = /(?:export\s+const\s+)?([a-zA-Z0-9_]+)\s*=\s*(?:pgTable|sqliteTable|mysqlTable)\s*\(\s*['"]([a-zA-Z0-9_]+)['"]\s*,\s*\{([\s\S]*?)\}\s*\)/gi;
+          let dMatch;
+          while ((dMatch = drizzleTableRegex.exec(f.content)) !== null) {
+            const tblName = dMatch[2];
+            const dBody = dMatch[3];
+            const dLines = dBody.split("\n").map(l => l.trim()).filter(l => l.includes(":"));
+            const dCols: ColumnDef[] = [];
+            dLines.forEach((dLine, idx) => {
+              const cName = dLine.split(":")[0].trim();
+              let mappedType: SqlDataType = "VARCHAR(255)";
+              if (dLine.includes("serial") || dLine.includes("integer")) mappedType = "INT";
+              else if (dLine.includes("uuid")) mappedType = "UUID";
+              else if (dLine.includes("boolean")) mappedType = "BOOLEAN";
+              else if (dLine.includes("json") || dLine.includes("jsonb")) mappedType = "JSONB";
+              else if (dLine.includes("timestamp")) mappedType = "TIMESTAMP";
+              else if (dLine.includes("text")) mappedType = "TEXT";
+              else if (dLine.includes("decimal")) mappedType = "DECIMAL(10,2)";
+
+              dCols.push({
+                id: `col-d-${tblName}-${idx}`,
+                name: cName,
+                type: mappedType,
+                isPrimary: dLine.includes(".primaryKey()"),
+                isNullable: !dLine.includes(".notNull()"),
+                isUnique: dLine.includes(".unique()")
+              });
+            });
+            if (dCols.length > 0) {
+              discovered.push({
+                id: `tbl-${tblName}`,
+                name: tblName,
+                color: "amber",
+                comment: `Drizzle ORM schema from ${f.path}`,
+                columns: dCols
+              });
+            }
+          }
+        }
       }
     });
 
@@ -289,7 +376,7 @@ export const DatabaseErdStudioAgent: React.FC<DatabaseErdStudioAgentProps> = ({
       showToast(`Discovered & loaded ${discovered.length} database tables from workspace!`);
       if (onAddLog) onAddLog("analyze", `ERD Architect scanned workspace and generated ${discovered.length} tables.`);
     } else {
-      showToast("No raw SQL CREATE TABLE statements detected in workspace files.");
+      showToast("No database schemas detected in workspace files. Use default templates or build tables above.");
     }
   };
 
