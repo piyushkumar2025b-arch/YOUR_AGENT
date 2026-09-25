@@ -833,10 +833,13 @@ export default function App() {
   // Fetch Models on Startup/API Key Update (Debounced, Cached & Abortable)
   // ----------------------------------------------------
   const fetchOpenRouterModels = async (signal?: AbortSignal, forceRefresh: boolean = false) => {
+    if (signal?.aborted) return;
     setIsLoadingModels(true);
     try {
       const modelsList = await getOrFetchModels(apiKey, signal, forceRefresh);
-      setModels(modelsList);
+      if (!signal?.aborted) {
+        setModels(modelsList);
+      }
     } catch (err: any) {
       const isAbort =
         signal?.aborted ||
@@ -858,8 +861,10 @@ export default function App() {
   useEffect(() => {
     const controller = new AbortController();
     const timer = setTimeout(() => {
-      fetchOpenRouterModels(controller.signal);
-    }, apiKey ? 400 : 0);
+      if (!controller.signal.aborted) {
+        fetchOpenRouterModels(controller.signal);
+      }
+    }, apiKey ? 400 : 50);
 
     return () => {
       clearTimeout(timer);

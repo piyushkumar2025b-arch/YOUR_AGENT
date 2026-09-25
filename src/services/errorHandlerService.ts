@@ -66,6 +66,7 @@ class ErrorHandlerService {
       const lowerMsg = String(msg || "").toLowerCase();
       const errName = (err && typeof err === "object" && "name" in err) ? String(err.name || "") : (typeof err === "string" ? err : "");
       const errCode = (err && typeof err === "object" && "code" in err) ? err.code : 0;
+      const errMessage = (err && typeof err === "object" && "message" in err) ? String(err.message || "").toLowerCase() : "";
       return (
         errName === "AbortError" ||
         errName === "CanceledError" ||
@@ -74,19 +75,30 @@ class ErrorHandlerService {
         lowerMsg.includes("aborterror") ||
         lowerMsg.includes("abort") ||
         lowerMsg.includes("signal is aborted") ||
-        lowerMsg.includes("signal is aborted without reason") ||
         lowerMsg.includes("the user aborted a request") ||
         lowerMsg.includes("canceled") ||
         lowerMsg.includes("cancelled") ||
         lowerMsg.includes("operation was aborted") ||
-        lowerMsg.includes("request timed out")
+        lowerMsg.includes("request timed out") ||
+        errMessage.includes("abort") ||
+        errMessage.includes("signal is aborted")
+      );
+    };
+
+    const isNetworkFetchError = (err: any, msg: string) => {
+      const combined = (String(msg || "") + " " + String(err?.message || "") + " " + String(err?.name || "")).toLowerCase();
+      return (
+        combined.includes("failed to fetch") ||
+        combined.includes("network request failed") ||
+        combined.includes("load failed") ||
+        combined.includes("networkerror")
       );
     };
 
     // Capture uncaught JavaScript runtime errors
     window.addEventListener("error", (event: ErrorEvent) => {
       const msg = event.message || (event.error && (event.error.message || event.error.name)) || "";
-      if (isAbortError(event.error, msg) || String(msg).toLowerCase().includes("failed to fetch")) {
+      if (isAbortError(event.error, msg) || isNetworkFetchError(event.error, msg)) {
         try {
           event.preventDefault();
           event.stopImmediatePropagation?.();
@@ -115,7 +127,7 @@ class ErrorHandlerService {
         source: event.filename ? `${event.filename}:${event.lineno}:${event.colno}` : "window.onerror",
         stack: event.error?.stack
       });
-    });
+    }, { capture: true });
 
     // Capture unhandled promise rejections (async/API failures)
     window.addEventListener("unhandledrejection", (event: PromiseRejectionEvent) => {
@@ -132,8 +144,8 @@ class ErrorHandlerService {
         message = (reason as any)?.message || JSON.stringify(reason);
       }
 
-      // Ignore intentional cancellations and aborts (e.g. AbortController / user navigation / timeout cleanups)
-      if (isAbortError(reason, message)) {
+      // Ignore intentional cancellations, aborts, and network fetch reconnect blips
+      if (isAbortError(reason, message) || isNetworkFetchError(reason, message)) {
         try {
           event.preventDefault();
           event.stopImmediatePropagation?.();
@@ -155,15 +167,6 @@ class ErrorHandlerService {
         return;
       }
 
-      // For standard "Failed to fetch" (e.g. server restart or offline), mark handled to avoid uncaught crash
-      if (message.toLowerCase().includes("failed to fetch") || message.toLowerCase().includes("network request failed")) {
-        try {
-          event.preventDefault();
-          event.stopImmediatePropagation?.();
-        } catch {}
-        return;
-      }
-
       try {
         event.preventDefault();
         event.stopImmediatePropagation?.();
@@ -175,7 +178,7 @@ class ErrorHandlerService {
         source: "unhandledrejection",
         stack
       });
-    });
+    }, { capture: true });
   }
 
   public logError(params: {

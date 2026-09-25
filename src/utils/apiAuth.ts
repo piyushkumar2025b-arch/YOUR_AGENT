@@ -29,7 +29,7 @@ export async function ensureSessionToken(): Promise<string> {
     try {
       const res = await fetch("/api/auth/guest-session", { method: "POST" });
       if (res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => null);
         if (data?.token) {
           setAuthToken(data.token);
           return data.token;
@@ -40,7 +40,13 @@ export async function ensureSessionToken(): Promise<string> {
     } finally {
       inFlightSessionPromise = null;
     }
-    return getAuthToken() || "";
+    const current = getAuthToken();
+    if (!current) {
+      const fallbackToken = `token.usr_guest_${Math.random().toString(36).substring(2, 10)}`;
+      setAuthToken(fallbackToken);
+      return fallbackToken;
+    }
+    return current;
   })();
 
   return inFlightSessionPromise;
@@ -71,7 +77,24 @@ export async function fetchWithAuth(
   options: RequestInit = {},
   userApiKey?: string
 ): Promise<Response> {
+  // If the request signal is already aborted, return immediately without invoking window.fetch
+  if (options.signal?.aborted) {
+    return new Response(JSON.stringify({ error: "Request aborted", aborted: true }), {
+      status: 499,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+
   const sessionToken = await ensureSessionToken().catch(() => "");
+
+  // Check again after awaiting session token in case signal aborted in the interim
+  if (options.signal?.aborted) {
+    return new Response(JSON.stringify({ error: "Request aborted", aborted: true }), {
+      status: 499,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+
   const authHeaders = getAuthHeaders(userApiKey);
   if (sessionToken && !authHeaders["X-Session-Id"]) {
     authHeaders["X-Session-Id"] = sessionToken;
@@ -102,6 +125,15 @@ export async function fetchWithAuth(
         headers: { "Content-Type": "application/json" }
       });
     }
+
+    // Convert network "Failed to fetch" into a 503 response to avoid uncaught client exceptions
+    if (err?.message && String(err.message).toLowerCase().includes("failed to fetch")) {
+      return new Response(JSON.stringify({ error: "Network fetch failed", failed: true }), {
+        status: 503,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+
     throw err;
   }
 }

@@ -15,6 +15,11 @@ export async function getOrFetchModels(
   signal?: AbortSignal,
   forceRefresh: boolean = false
 ): Promise<Model[]> {
+  // If signal is already aborted, do not initiate network call
+  if (signal?.aborted) {
+    return cachedModels ? cachedModels.models : popularModels;
+  }
+
   const now = Date.now();
 
   // Return cached models if still fresh and not force-refreshed

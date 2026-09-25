@@ -66,12 +66,12 @@ export default function LoadStressBenchmarkStudioAgent({
 }: LoadStressBenchmarkStudioAgentProps) {
   // Discovery of workspace endpoints
   const discoveredEndpoints = useMemo(() => {
-    const list: string[] = ["/api/health", "/api/gemini/generate", "/api/data", "/api/mock/users"];
+    const list: string[] = ["/api/health", "/api/crypto/live", "/api/forex/latest", "/api/weather?city=Tokyo"];
     files.forEach(f => {
       if (f.path.includes("server.ts") || f.path.includes("routes") || f.path.includes("api/")) {
         const matches = f.content.matchAll(/app\.(get|post|put|delete|patch)\s*\(\s*["']([^"']+)["']/g);
         for (const m of matches) {
-          if (m[2] && !list.includes(m[2])) {
+          if (m[2] && !list.includes(m[2]) && !m[2].includes(":")) {
             list.push(m[2]);
           }
         }
@@ -109,7 +109,9 @@ export default function LoadStressBenchmarkStudioAgent({
   // Stop test handler
   const stopBenchmark = () => {
     if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+      try {
+        abortControllerRef.current.abort("Load benchmark stopped by user");
+      } catch {}
       abortControllerRef.current = null;
     }
     if (intervalTimerRef.current) {
@@ -151,7 +153,7 @@ export default function LoadStressBenchmarkStudioAgent({
     setActiveWorkers(targetWorkers);
 
     for (let i = 0; i < targetWorkers; i++) {
-      runWorkerLoop(i, controller.signal, startTime);
+      runWorkerLoop(i, controller.signal, startTime).catch(() => {});
     }
   };
 
@@ -185,19 +187,40 @@ export default function LoadStressBenchmarkStudioAgent({
           success = status >= 200 && status < 400;
           size = 256 + Math.floor(Math.random() * 512);
         } else {
-          // External network fetch
-          const fetchTimeout = setTimeout(() => abortControllerRef.current?.abort(), timeoutMs);
-          const res = await fetch(targetUrl, {
-            method: httpMethod,
-            headers: headersObj,
-            body: httpMethod !== "GET" ? requestBody : undefined,
-            signal
-          });
-          clearTimeout(fetchTimeout);
-          status = res.status;
-          success = res.ok;
-          const text = await res.text();
-          size = text.length;
+          // External network fetch: route through proxy to prevent browser CORS "Failed to fetch"
+          const proxyUrl = targetUrl.startsWith("http")
+            ? `/api/proxy?url=${encodeURIComponent(targetUrl)}`
+            : targetUrl;
+
+          // Individual request abort controller with timeout
+          const reqController = new AbortController();
+          const reqTimeout = setTimeout(() => {
+            try { reqController.abort("Per-request timeout exceeded"); } catch {}
+          }, timeoutMs);
+
+          const onGlobalAbort = () => {
+            try { reqController.abort("Benchmark terminated"); } catch {}
+          };
+          signal.addEventListener("abort", onGlobalAbort, { once: true });
+
+          try {
+            const res = await fetch(proxyUrl, {
+              method: httpMethod,
+              headers: headersObj,
+              body: httpMethod !== "GET" ? requestBody : undefined,
+              signal: reqController.signal
+            });
+            clearTimeout(reqTimeout);
+            signal.removeEventListener("abort", onGlobalAbort);
+            status = res.status;
+            success = res.ok;
+            const text = await res.text().catch(() => "");
+            size = text.length;
+          } catch (reqErr: any) {
+            clearTimeout(reqTimeout);
+            signal.removeEventListener("abort", onGlobalAbort);
+            throw reqErr;
+          }
         }
 
         const duration = Math.round(performance.now() - reqStart);
@@ -240,7 +263,11 @@ export default function LoadStressBenchmarkStudioAgent({
 
   useEffect(() => {
     return () => {
-      if (abortControllerRef.current) abortControllerRef.current.abort();
+      if (abortControllerRef.current) {
+        try {
+          abortControllerRef.current.abort("Benchmark component unmounted");
+        } catch {}
+      }
       if (intervalTimerRef.current) window.clearInterval(intervalTimerRef.current);
     };
   }, []);
