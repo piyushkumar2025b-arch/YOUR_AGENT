@@ -18,10 +18,13 @@ import {
   Play,
   RotateCcw,
   Layers,
-  FileCode
+  FileCode,
+  FolderOpen
 } from "lucide-react";
+import { VirtualFile } from "../types";
 
 export interface JsonSchemaValidatorStudioAgentProps {
+  files?: VirtualFile[];
   theme: "light" | "dark";
   onSaveFile?: (path: string, content: string) => void;
   onAddLog?: (type: string, msg: string) => void;
@@ -207,13 +210,15 @@ function validateJsonAgainstSchema(data: any, schema: any, path = "root"): Valid
 }
 
 export const JsonSchemaValidatorStudioAgent: React.FC<JsonSchemaValidatorStudioAgentProps> = ({
+  files = [],
   theme,
   onSaveFile,
   onAddLog
 }) => {
   const [schemaText, setSchemaText] = useState<string>(DEFAULT_JSON_SCHEMA);
   const [instanceText, setInstanceText] = useState<string>(DEFAULT_JSON_INSTANCE);
-  const [activeTab, setActiveTab] = useState<"validator" | "zod" | "generator">("validator");
+  const [activeTab, setActiveTab] = useState<"validator" | "zod" | "ts" | "generator">("validator");
+  const [selectedWorkspaceFile, setSelectedWorkspaceFile] = useState<string>("");
 
   const [schemaParseError, setSchemaParseError] = useState<string | null>(null);
   const [instanceParseError, setInstanceParseError] = useState<string | null>(null);
@@ -221,6 +226,26 @@ export const JsonSchemaValidatorStudioAgent: React.FC<JsonSchemaValidatorStudioA
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState<boolean>(false);
+
+  // Discover JSON files from workspace
+  const workspaceJsonFiles = useMemo(() => {
+    return files.filter(f => f.path.endsWith(".json"));
+  }, [files]);
+
+  const handleSelectWorkspaceFile = (filePath: string) => {
+    setSelectedWorkspaceFile(filePath);
+    if (!filePath) return;
+    const target = files.find(f => f.path === filePath);
+    if (target && target.content) {
+      try {
+        const parsed = JSON.parse(target.content);
+        setInstanceText(JSON.stringify(parsed, null, 2));
+        showToast(`Loaded ${filePath} into data instance!`);
+      } catch (err: any) {
+        showToast(`Could not parse ${filePath}: ${err.message}`);
+      }
+    }
+  };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -374,6 +399,50 @@ export const JsonSchemaValidatorStudioAgent: React.FC<JsonSchemaValidatorStudioA
     }
   }, [schemaText]);
 
+  // Generated pure TypeScript Interface
+  const generatedTsCode = useMemo(() => {
+    try {
+      const schema = JSON.parse(schemaText);
+      const title = (schema.title || "Data").replace(/[^a-zA-Z0-9]/g, "");
+      const lines: string[] = [
+        `/**`,
+        ` * TypeScript Interface Definitions`,
+        ` * Auto-generated from JSON Schema (${schema.title || "Schema"})`,
+        ` */`,
+        ``,
+        `export interface ${title} {`
+      ];
+
+      if (schema.properties) {
+        Object.entries(schema.properties).forEach(([key, val]: [string, any]) => {
+          let tsType = "string";
+          if (val.type === "number" || val.type === "integer") tsType = "number";
+          else if (val.type === "boolean") tsType = "boolean";
+          else if (val.type === "array") {
+            const itemType = val.items && val.items.type ? (val.items.type === "number" || val.items.type === "integer" ? "number" : val.items.type === "boolean" ? "boolean" : "string") : "any";
+            tsType = `${itemType}[]`;
+          } else if (val.enum && Array.isArray(val.enum)) {
+            tsType = val.enum.map((e: any) => JSON.stringify(e)).join(" | ");
+          } else if (val.type === "object") {
+            tsType = "Record<string, any>";
+          }
+
+          const isRequired = Array.isArray(schema.required) && schema.required.includes(key);
+          const optionalFlag = isRequired ? "" : "?";
+          if (val.description) {
+            lines.push(`  /** ${val.description} */`);
+          }
+          lines.push(`  ${key}${optionalFlag}: ${tsType};`);
+        });
+      }
+
+      lines.push(`}`);
+      return lines.join("\n");
+    } catch {
+      return "// Invalid JSON Schema format";
+    }
+  }, [schemaText]);
+
   const handleCopy = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     setIsCopied(true);
@@ -412,6 +481,29 @@ export const JsonSchemaValidatorStudioAgent: React.FC<JsonSchemaValidatorStudioA
 
         {/* Global Action Buttons */}
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Workspace JSON Loader */}
+          {workspaceJsonFiles.length > 0 && (
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs ${
+              theme === "dark" ? "bg-slate-800/80 border-slate-700 text-slate-200" : "bg-slate-100 border-slate-300 text-slate-800"
+            }`}>
+              <FolderOpen className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <select
+                value={selectedWorkspaceFile}
+                onChange={(e) => handleSelectWorkspaceFile(e.target.value)}
+                className="bg-transparent text-xs focus:outline-none cursor-pointer max-w-[150px] truncate"
+              >
+                <option value="" className={theme === "dark" ? "bg-slate-900 text-slate-400" : "bg-white text-slate-500"}>
+                  Workspace JSON...
+                </option>
+                {workspaceJsonFiles.map(f => (
+                  <option key={f.path} value={f.path} className={theme === "dark" ? "bg-slate-900 text-slate-200" : "bg-white text-slate-800"}>
+                    {f.path}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <button
             onClick={handleInferSchema}
             className={`px-3 py-1.5 text-xs font-medium rounded-lg flex items-center gap-1.5 transition-all shadow-sm ${
@@ -437,17 +529,35 @@ export const JsonSchemaValidatorStudioAgent: React.FC<JsonSchemaValidatorStudioA
           </button>
 
           {onSaveFile && (
-            <button
-              onClick={() => {
-                onSaveFile("src/schemas/validation.ts", generatedZodCode);
-                showToast("Saved src/schemas/validation.ts!");
-                if (onAddLog) onAddLog("create", "Saved src/schemas/validation.ts with Zod schemas.");
-              }}
-              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-all"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>Save Zod Schemas</span>
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  onSaveFile("src/schemas/schema.json", schemaText);
+                  showToast("Saved src/schemas/schema.json!");
+                  if (onAddLog) onAddLog("create", "Saved src/schemas/schema.json.");
+                }}
+                className={`px-2.5 py-1.5 text-xs font-medium rounded-lg border flex items-center gap-1.5 transition-all ${
+                  theme === "dark" ? "border-slate-700 hover:bg-slate-800 text-slate-200" : "border-slate-300 hover:bg-slate-100 text-slate-700"
+                }`}
+                title="Save schema.json to workspace"
+              >
+                <Save className="w-3.5 h-3.5 text-amber-400" />
+                <span>Save schema.json</span>
+              </button>
+              <button
+                onClick={() => {
+                  const saveTarget = selectedWorkspaceFile || "public/data.json";
+                  onSaveFile(saveTarget, instanceText);
+                  showToast(`Saved ${saveTarget}!`);
+                  if (onAddLog) onAddLog("create", `Saved JSON data to ${saveTarget}.`);
+                }}
+                className="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-all"
+                title="Save validated JSON data"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>Save JSON Data</span>
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -476,6 +586,17 @@ export const JsonSchemaValidatorStudioAgent: React.FC<JsonSchemaValidatorStudioA
           >
             <Code className="w-3.5 h-3.5 text-cyan-400" />
             <span>Zod TypeScript Schemas</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("ts")}
+            className={`px-3 py-1.5 rounded-md font-medium flex items-center gap-1.5 transition-colors ${
+              activeTab === "ts"
+                ? theme === "dark" ? "bg-slate-800 text-white shadow-sm" : "bg-white text-slate-900 shadow-sm"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <FileCode className="w-3.5 h-3.5 text-amber-400" />
+            <span>TypeScript Interfaces</span>
           </button>
         </div>
 
@@ -605,6 +726,48 @@ export const JsonSchemaValidatorStudioAgent: React.FC<JsonSchemaValidatorStudioA
               theme === "dark" ? "bg-slate-900 border-slate-800 text-emerald-300" : "bg-slate-100 border-slate-300 text-slate-800"
             }`}>
               {generatedZodCode}
+            </pre>
+          </div>
+        )}
+
+        {/* VIEW 3: TYPESCRIPT INTERFACE */}
+        {activeTab === "ts" && (
+          <div className="flex-1 flex flex-col h-full overflow-hidden p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h2 className="text-sm font-bold flex items-center gap-2">
+                  <FileCode className="w-4 h-4 text-amber-400" />
+                  Generated TypeScript Interfaces (src/types/schema.d.ts)
+                </h2>
+                <p className="text-xs text-slate-400">Zero-dependency TypeScript typings inferred directly from JSON Schema definitions</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleCopy(generatedTsCode, "TypeScript Interfaces")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-1.5 ${
+                    theme === "dark" ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-white border-slate-300 text-slate-800"
+                  }`}
+                >
+                  <Copy className="w-3.5 h-3.5" /> Copy Code
+                </button>
+                {onSaveFile && (
+                  <button
+                    onClick={() => {
+                      onSaveFile("src/types/schema.d.ts", generatedTsCode);
+                      showToast("Saved src/types/schema.d.ts!");
+                      if (onAddLog) onAddLog("create", "Saved src/types/schema.d.ts interface definitions.");
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-1.5 shadow"
+                  >
+                    <Save className="w-3.5 h-3.5" /> Save src/types/schema.d.ts
+                  </button>
+                )}
+              </div>
+            </div>
+            <pre className={`flex-1 p-4 rounded-xl font-mono text-xs overflow-auto border ${
+              theme === "dark" ? "bg-slate-900 border-slate-800 text-amber-300" : "bg-slate-100 border-slate-300 text-amber-900"
+            }`}>
+              {generatedTsCode}
             </pre>
           </div>
         )}

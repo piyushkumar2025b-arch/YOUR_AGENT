@@ -55,7 +55,15 @@ import {
   ShieldCheck,
   Regex as RegexIcon,
   GitCompare,
-  Server
+  Server,
+  Box,
+  GitBranch,
+  FileJson,
+  Key,
+  Clock,
+  Radio,
+  Orbit,
+  GitFork
 } from "lucide-react";
 
 interface AppNavigationTabsBarProps {
@@ -628,6 +636,176 @@ export const AppNavigationTabsBar: React.FC<AppNavigationTabsBarProps> = ({
           <Activity className="w-3.5 h-3.5 text-rose-400" />
           Perf & Health Auditor
         </button>
+
+        {/* DEVELOPER STUDIO TOOLS */}
+        <button
+          onClick={() => setActiveTab("docker-studio")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "docker-studio"
+              ? (isDark ? "bg-sky-500/20 text-sky-300 border border-sky-500/40 font-bold" : "bg-sky-100 text-sky-900 border border-sky-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50" : "text-slate-500 hover:text-sky-600 hover:bg-sky-50")
+          }`}
+        >
+          <Box className="w-3.5 h-3.5 text-sky-400" />
+          Docker & Compose
+        </button>
+
+        <button
+          onClick={() => setActiveTab("load-benchmark")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "load-benchmark"
+              ? (isDark ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold" : "bg-amber-100 text-amber-900 border border-amber-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50" : "text-slate-500 hover:text-amber-600 hover:bg-amber-50")
+          }`}
+        >
+          <Flame className="w-3.5 h-3.5 text-amber-400" />
+          Load Benchmark
+        </button>
+
+        <button
+          onClick={() => setActiveTab("seo-studio")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "seo-studio"
+              ? (isDark ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold" : "bg-cyan-100 text-cyan-900 border border-cyan-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50" : "text-slate-500 hover:text-cyan-600 hover:bg-cyan-50")
+          }`}
+        >
+          <Share2 className="w-3.5 h-3.5 text-cyan-400" />
+          SEO & Social SERP
+        </button>
+
+        <button
+          onClick={() => setActiveTab("git-graph-studio")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "git-graph-studio"
+              ? (isDark ? "bg-blue-500/20 text-blue-300 border border-blue-500/40 font-bold" : "bg-blue-100 text-blue-900 border border-blue-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50" : "text-slate-500 hover:text-blue-600 hover:bg-blue-50")
+          }`}
+        >
+          <GitBranch className="w-3.5 h-3.5 text-blue-400" />
+          Git Graph & Commits
+        </button>
+
+        <button
+          onClick={() => setActiveTab("json-schema-studio")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "json-schema-studio"
+              ? (isDark ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold" : "bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50" : "text-slate-500 hover:text-emerald-600 hover:bg-emerald-50")
+          }`}
+        >
+          <FileJson className="w-3.5 h-3.5 text-emerald-400" />
+          JSON Schema Architect
+        </button>
+
+        <button
+          onClick={() => setActiveTab("network-har-studio")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "network-har-studio"
+              ? (isDark ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold" : "bg-cyan-100 text-cyan-900 border border-cyan-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50" : "text-slate-500 hover:text-cyan-600 hover:bg-cyan-50")
+          }`}
+        >
+          <Globe className="w-3.5 h-3.5 text-cyan-400" />
+          Network HAR Waterfall
+        </button>
+
+        <button
+          onClick={() => setActiveTab("tailwind-tokens-studio")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "tailwind-tokens-studio"
+              ? (isDark ? "bg-pink-500/20 text-pink-300 border border-pink-500/40 font-bold" : "bg-pink-100 text-pink-900 border border-pink-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50" : "text-slate-500 hover:text-pink-600 hover:bg-pink-50")
+          }`}
+        >
+          <Palette className="w-3.5 h-3.5 text-pink-400" />
+          Tailwind Tokens
+        </button>
+
+        <button
+          onClick={() => setActiveTab("jwt-lab")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "jwt-lab"
+              ? (isDark ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold" : "bg-purple-100 text-purple-900 border border-purple-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50" : "text-slate-500 hover:text-purple-600 hover:bg-purple-50")
+          }`}
+        >
+          <Key className="w-3.5 h-3.5 text-purple-400" />
+          JWT & Crypto Lab
+        </button>
+
+        <button
+          onClick={() => setActiveTab("erd-studio")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "erd-studio" || activeTab === "database-erd"
+              ? (isDark ? "bg-blue-500/20 text-blue-300 border border-blue-500/40 font-bold" : "bg-blue-100 text-blue-900 border border-blue-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50" : "text-slate-500 hover:text-blue-600 hover:bg-blue-50")
+          }`}
+        >
+          <Database className="w-3.5 h-3.5 text-blue-400" />
+          Database ERD
+        </button>
+
+        <button
+          onClick={() => setActiveTab("cron-studio")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "cron-studio"
+              ? (isDark ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold" : "bg-amber-100 text-amber-900 border border-amber-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50" : "text-slate-500 hover:text-amber-600 hover:bg-amber-50")
+          }`}
+        >
+          <Clock className="w-3.5 h-3.5 text-amber-400" />
+          Cron Scheduler
+        </button>
+
+        <button
+          onClick={() => setActiveTab("stream-tester")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "stream-tester"
+              ? (isDark ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold" : "bg-purple-100 text-purple-900 border border-purple-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50" : "text-slate-500 hover:text-purple-600 hover:bg-purple-50")
+          }`}
+        >
+          <Radio className="w-3.5 h-3.5 text-purple-400" />
+          Stream Tester
+        </button>
+
+        <button
+          onClick={() => setActiveTab("openapi-studio")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "openapi-studio"
+              ? (isDark ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold" : "bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50" : "text-slate-500 hover:text-emerald-600 hover:bg-emerald-50")
+          }`}
+        >
+          <FileCode2 className="w-3.5 h-3.5 text-emerald-400" />
+          OpenAPI & Swagger
+        </button>
+
+        <button
+          onClick={() => setActiveTab("graphql-studio")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "graphql-studio"
+              ? (isDark ? "bg-pink-500/20 text-pink-300 border border-pink-500/40 font-bold" : "bg-pink-100 text-pink-900 border border-pink-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50" : "text-slate-500 hover:text-pink-600 hover:bg-pink-50")
+          }`}
+        >
+          <Orbit className="w-3.5 h-3.5 text-pink-400" />
+          GraphQL Explorer
+        </button>
+
+        <button
+          onClick={() => setActiveTab("cicd-architect")}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${
+            activeTab === "cicd-architect" || activeTab === "cicd-studio"
+              ? (isDark ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold" : "bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold")
+              : (isDark ? "text-zinc-400 hover:text-white hover:bg-zinc-900/50" : "text-slate-500 hover:text-emerald-600 hover:bg-emerald-50")
+          }`}
+        >
+          <GitFork className="w-3.5 h-3.5 text-emerald-400" />
+          CI/CD Architect
+        </button>
+
         <button
           onClick={() => setActiveTab("settings")}
           className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold tracking-wide transition-all cursor-pointer shrink-0 touch-press ${

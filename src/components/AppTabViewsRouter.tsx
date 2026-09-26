@@ -1249,7 +1249,7 @@ export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = React.memo(({
       )}
 
       {/* VIEW: DATABASE SCHEMA & ERD ARCHITECT */}
-      {activeTab === "erd-studio" && (
+      {(activeTab === "erd-studio" || activeTab === "database-erd") && (
         <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
           <DatabaseErdStudioAgent
             files={files}
@@ -1292,7 +1292,7 @@ export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = React.memo(({
       )}
 
       {/* VIEW: CI/CD & GITHUB ACTIONS ARCHITECT */}
-      {activeTab === "cicd-architect" && (
+      {(activeTab === "cicd-architect" || activeTab === "cicd-studio") && (
         <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
           <CicdWorkflowArchitectAgent
             files={files}
@@ -1403,6 +1403,7 @@ export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = React.memo(({
       {activeTab === "json-schema-studio" && (
         <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
           <JsonSchemaValidatorStudioAgent
+            files={files}
             theme={theme}
             onSaveFile={(path, content) => {
               setFiles(prev => {
