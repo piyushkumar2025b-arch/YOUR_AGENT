@@ -52,12 +52,19 @@ export interface PacketMessage {
 
 export type SimMode = "crypto" | "telemetry" | "chat" | "tokens";
 
+const getLocalWsUrl = () => {
+  if (typeof window === "undefined") return "ws://localhost:3000/ws";
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${proto}//${window.location.host}/ws`;
+};
+
 const DEFAULT_ENDPOINTS = [
-  { label: "Public WebSocket Echo (Postman)", url: "wss://ws.postman-echo.com/raw", protocol: "websocket" },
+  { label: "⚡ Live Local Server WebSocket (/ws)", url: typeof window !== "undefined" ? (window.location.protocol === "https:" ? "wss://" : "ws://") + window.location.host + "/ws" : "/ws", protocol: "websocket" },
+  { label: "⚡ Live Local Server SSE Stream (/api/stream/sse)", url: "/api/stream/sse", protocol: "sse" },
   { label: "Public WebSocket Echo (Events)", url: "wss://echo.websocket.events", protocol: "websocket" },
+  { label: "Public WebSocket Echo (Postman)", url: "wss://ws.postman-echo.com/raw", protocol: "websocket" },
   { label: "Public SSE Stream (sse.dev)", url: "https://sse.dev/test", protocol: "sse" },
-  { label: "Local Dev WebSocket", url: "ws://localhost:3000/ws", protocol: "websocket" },
-  { label: "Built-in Simulator (Zero Network Req)", url: "sim://local-feed", protocol: "simulation" }
+  { label: "Built-in Local Simulator (Zero Network Req)", url: "sim://local-feed", protocol: "simulation" }
 ];
 
 export const RealtimeStreamTesterAgent: React.FC<RealtimeStreamTesterAgentProps> = ({
@@ -65,8 +72,8 @@ export const RealtimeStreamTesterAgent: React.FC<RealtimeStreamTesterAgentProps>
   onSaveFile,
   onAddLog
 }) => {
-  const [protocol, setProtocol] = useState<StreamProtocol>("websocket");
-  const [endpointUrl, setEndpointUrl] = useState<string>("wss://echo.websocket.events");
+  const [protocol, setProtocol] = useState<StreamProtocol>("sse");
+  const [endpointUrl, setEndpointUrl] = useState<string>("/api/stream/sse");
   const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connecting" | "connected" | "error">("disconnected");
   const [packets, setPackets] = useState<PacketMessage[]>([]);
   const [searchFilter, setSearchFilter] = useState<string>("");
@@ -174,7 +181,12 @@ export const RealtimeStreamTesterAgent: React.FC<RealtimeStreamTesterAgentProps>
 
     if (protocol === "websocket") {
       try {
-        const ws = new WebSocket(endpointUrl);
+        let wsUrl = endpointUrl;
+        if (wsUrl.startsWith("/")) {
+          const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+          wsUrl = `${proto}//${window.location.host}${wsUrl}`;
+        }
+        const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
         ws.onopen = () => {

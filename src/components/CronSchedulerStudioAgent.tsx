@@ -56,9 +56,8 @@ const DEFAULT_TASKS: ScheduledTask[] = [
     taskType: "http",
     endpoint: "/api/health",
     status: "idle",
-    runCount: 14,
-    lastRunAt: Date.now() - 3600000 * 5,
-    durationMs: 42
+    runCount: 0,
+    durationMs: undefined
   },
   {
     id: "task-2",
@@ -69,9 +68,8 @@ const DEFAULT_TASKS: ScheduledTask[] = [
     taskType: "http",
     endpoint: "/api/crypto/live",
     status: "idle",
-    runCount: 88,
-    lastRunAt: Date.now() - 60000 * 8,
-    durationMs: 95
+    runCount: 0,
+    durationMs: undefined
   },
   {
     id: "task-3",
@@ -82,9 +80,8 @@ const DEFAULT_TASKS: ScheduledTask[] = [
     taskType: "http",
     endpoint: "/api/forex/latest",
     status: "idle",
-    runCount: 24,
-    lastRunAt: Date.now() - 3600000,
-    durationMs: 110
+    runCount: 0,
+    durationMs: undefined
   },
   {
     id: "task-4",
@@ -95,9 +92,8 @@ const DEFAULT_TASKS: ScheduledTask[] = [
     taskType: "script",
     scriptCode: "const memory = (window.performance && (window.performance as any).memory) ? Math.round((window.performance as any).memory.usedJSHeapSize / 1048576) : 28; return { status: 'healthy', usedHeapMb: memory, timestamp: Date.now() };",
     status: "idle",
-    runCount: 3,
-    lastRunAt: Date.now() - 3600000 * 24 * 3,
-    durationMs: 15
+    runCount: 0,
+    durationMs: undefined
   }
 ];
 
@@ -207,25 +203,8 @@ export const CronSchedulerStudioAgent: React.FC<CronSchedulerStudioAgentProps> =
   const [monthSeg, setMonthSeg] = useState<string>("*");
   const [dowSeg, setDowSeg] = useState<string>("*");
 
-  // Logs stream
-  const [executionLogs, setExecutionLogs] = useState<{ id: string; time: string; taskName: string; status: "success" | "failed"; durationMs: number; message: string }[]>([
-    {
-      id: "l-1",
-      time: new Date(Date.now() - 3600000).toLocaleTimeString(),
-      taskName: "Database Snapshot Backup",
-      status: "success",
-      durationMs: 420,
-      message: "Created WAL dump backup-2026-09.tar.gz (48.2 MB)"
-    },
-    {
-      id: "l-2",
-      time: new Date(Date.now() - 1800000).toLocaleTimeString(),
-      taskName: "Session Cache & Token Purge",
-      status: "success",
-      durationMs: 95,
-      message: "Purged 34 expired redis tokens"
-    }
-  ]);
+  // Logs stream - captures real task executions
+  const [executionLogs, setExecutionLogs] = useState<{ id: string; time: string; taskName: string; status: "success" | "failed"; durationMs: number; message: string }[]>([]);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState<boolean>(false);
@@ -321,6 +300,18 @@ export const CronSchedulerStudioAgent: React.FC<CronSchedulerStudioAgentProps> =
 
     showToast(`${status === "success" ? "✅ Completed" : "❌ Failed"} "${task.name}" in ${durationMs}ms`);
     if (onAddLog) onAddLog("execute", `Cron task ${task.name}: ${message}`);
+  };
+
+  const [isRunningAll, setIsRunningAll] = useState(false);
+
+  const handleRunAllTasksNow = async () => {
+    setIsRunningAll(true);
+    showToast(`⚡ Running all ${tasks.length} active scheduled jobs...`);
+    for (const task of tasks) {
+      await handleRunTaskNow(task);
+    }
+    setIsRunningAll(false);
+    showToast("✅ Finished executing all scheduled jobs!");
   };
 
   // Generated Node.js node-cron code
@@ -701,30 +692,46 @@ export const CronSchedulerStudioAgent: React.FC<CronSchedulerStudioAgentProps> =
         {/* VIEW 2: TASK SANDBOX */}
         {activeTab === "tasks" && (
           <div className="flex-1 flex flex-col h-full overflow-y-auto p-5 space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <div>
                 <h2 className="text-sm font-bold">Scheduled Job Sandbox ({tasks.length})</h2>
                 <p className="text-xs text-slate-400">Manage background tasks and trigger immediate test executions</p>
               </div>
-              <button
-                onClick={() => {
-                  const newTask: ScheduledTask = {
-                    id: `task-${Date.now()}`,
-                    name: `Custom Scheduled Job ${tasks.length + 1}`,
-                    cronExpr: "0 * * * *",
-                    description: "User-defined scheduled task runner",
-                    handlerName: `handleCustomJob${tasks.length + 1}`,
-                    status: "idle",
-                    runCount: 0
-                  };
-                  setTasks(prev => [...prev, newTask]);
-                  showToast("Added new scheduled task!");
-                }}
-                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-1.5 shadow"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Task</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleRunAllTasksNow}
+                  disabled={isRunningAll}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all shadow ${
+                    isRunningAll
+                      ? "bg-slate-700 text-slate-400 cursor-not-allowed"
+                      : "bg-emerald-600 hover:bg-emerald-500 text-white"
+                  }`}
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  <span>{isRunningAll ? "Running Jobs..." : "Run All Active Tasks"}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    const newTask: ScheduledTask = {
+                      id: `task-${Date.now()}`,
+                      name: `Custom Scheduled Job ${tasks.length + 1}`,
+                      cronExpr: "0 * * * *",
+                      description: "User-defined scheduled task runner",
+                      handlerName: `handleCustomJob${tasks.length + 1}`,
+                      taskType: "http",
+                      endpoint: "/api/health",
+                      status: "idle",
+                      runCount: 0
+                    };
+                    setTasks(prev => [...prev, newTask]);
+                    showToast("Added new scheduled task!");
+                  }}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-1.5 shadow"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Task</span>
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -19,8 +19,10 @@ import {
   ChevronDown
 } from "lucide-react";
 import { fetchWithAuth } from "../utils/apiAuth";
+import { VirtualFile } from "../types";
 
 interface RelationalSqlStudioAgentProps {
+  files?: VirtualFile[];
   apiKey?: string;
   selectedModel?: string;
   theme?: "light" | "dark" | string;
@@ -156,6 +158,7 @@ const PRESET_QUERIES = [
 ];
 
 export const RelationalSqlStudioAgent: React.FC<RelationalSqlStudioAgentProps> = ({
+  files = [],
   apiKey = "",
   selectedModel = "gemini-2.5-flash",
   theme = "dark",
@@ -163,13 +166,123 @@ export const RelationalSqlStudioAgent: React.FC<RelationalSqlStudioAgentProps> =
 }) => {
   const isDark = theme !== "light";
 
-  const [activeDbKey, setActiveDbKey] = useState<string>("ecommerce");
-  const [database, setDatabase] = useState<SqlTable[]>(() => 
-    JSON.parse(JSON.stringify(STARTER_DATABASES["ecommerce"].tables))
-  );
+  const allDatabases = useMemo(() => {
+    const list: Record<string, { label: string; tables: SqlTable[] }> = {
+      ...STARTER_DATABASES
+    };
+    if (files && files.length > 0) {
+      const workspaceTables: SqlTable[] = [
+        {
+          name: "workspace_files",
+          columns: [
+            { name: "id", type: "INTEGER", isPk: true },
+            { name: "path", type: "TEXT" },
+            { name: "language", type: "TEXT" },
+            { name: "size_bytes", type: "INTEGER" },
+            { name: "is_user_created", type: "BOOLEAN" }
+          ],
+          rows: files.map((f, idx) => ({
+            id: idx + 1,
+            path: f.path,
+            language: f.language || f.path.split(".").pop() || "txt",
+            size_bytes: f.content ? f.content.length : 0,
+            is_user_created: Boolean(f.isUserCreated)
+          }))
+        }
+      ];
 
-  const [sqlQuery, setSqlQuery] = useState<string>(
-    "SELECT * FROM customers WHERE spent_total > 400 ORDER BY spent_total DESC LIMIT 10;"
+      const pkgFile = files.find(f => f.path === "package.json");
+      if (pkgFile && pkgFile.content) {
+        try {
+          const pkgJson = JSON.parse(pkgFile.content);
+          const deps = { ...(pkgJson.dependencies || {}), ...(pkgJson.devDependencies || {}) };
+          const depRows = Object.entries(deps).map(([name, ver], idx) => ({
+            id: idx + 1,
+            name,
+            version: String(ver),
+            is_dev: Boolean(pkgJson.devDependencies?.[name])
+          }));
+
+          workspaceTables.push({
+            name: "package_dependencies",
+            columns: [
+              { name: "id", type: "INTEGER", isPk: true },
+              { name: "name", type: "TEXT" },
+              { name: "version", type: "TEXT" },
+              { name: "is_dev", type: "BOOLEAN" }
+            ],
+            rows: depRows
+          });
+        } catch {}
+      }
+
+      list["workspace"] = {
+        label: `Project Workspace Files (${files.length} files)`,
+        tables: workspaceTables
+      };
+    }
+    return list;
+  }, [files]);
+
+  const initialKey = files && files.length > 0 ? "workspace" : "ecommerce";
+  const [activeDbKey, setActiveDbKey] = useState<string>(initialKey);
+  const [database, setDatabase] = useState<SqlTable[]>(() => {
+    if (!files || files.length === 0) {
+      return JSON.parse(JSON.stringify(STARTER_DATABASES["ecommerce"].tables));
+    }
+
+    const tables: SqlTable[] = [
+      {
+        name: "workspace_files",
+        columns: [
+          { name: "id", type: "INTEGER", isPk: true },
+          { name: "path", type: "TEXT" },
+          { name: "language", type: "TEXT" },
+          { name: "size_bytes", type: "INTEGER" },
+          { name: "is_user_created", type: "BOOLEAN" }
+        ],
+        rows: files.map((f, idx) => ({
+          id: idx + 1,
+          path: f.path,
+          language: f.language || f.path.split(".").pop() || "txt",
+          size_bytes: f.content ? f.content.length : 0,
+          is_user_created: Boolean(f.isUserCreated)
+        }))
+      }
+    ];
+
+    const pkgFile = files.find(f => f.path === "package.json");
+    if (pkgFile && pkgFile.content) {
+      try {
+        const pkgJson = JSON.parse(pkgFile.content);
+        const deps = { ...(pkgJson.dependencies || {}), ...(pkgJson.devDependencies || {}) };
+        const depRows = Object.entries(deps).map(([name, ver], idx) => ({
+          id: idx + 1,
+          name,
+          version: String(ver),
+          is_dev: Boolean(pkgJson.devDependencies?.[name])
+        }));
+
+        tables.push({
+          name: "package_dependencies",
+          columns: [
+            { name: "id", type: "INTEGER", isPk: true },
+            { name: "name", type: "TEXT" },
+            { name: "version", type: "TEXT" },
+            { name: "is_dev", type: "BOOLEAN" }
+          ],
+          rows: depRows
+        });
+      } catch {}
+    }
+
+    return tables;
+  });
+
+  const [sqlQuery, setSqlQuery] = useState<string>(() =>
+    files && files.length > 0
+      ? "SELECT path, language, size_bytes FROM workspace_files WHERE size_bytes > 50 ORDER BY size_bytes DESC LIMIT 15;"
+      : "SELECT * FROM customers WHERE spent_total > 400 ORDER BY spent_total DESC LIMIT 10;"
   );
 
   // Execution Results
@@ -191,10 +304,16 @@ export const RelationalSqlStudioAgent: React.FC<RelationalSqlStudioAgentProps> =
   // Switch Starter Database
   const handleSwitchDb = (key: string) => {
     setActiveDbKey(key);
-    const newTables = JSON.parse(JSON.stringify(STARTER_DATABASES[key].tables));
+    const target = allDatabases[key];
+    if (!target) return;
+    const newTables = JSON.parse(JSON.stringify(target.tables));
     setDatabase(newTables);
     if (newTables[0]) {
-      setSqlQuery(`SELECT * FROM ${newTables[0].name} LIMIT 20;`);
+      setSqlQuery(
+        key === "workspace"
+          ? "SELECT path, language, size_bytes FROM workspace_files ORDER BY size_bytes DESC LIMIT 15;"
+          : `SELECT * FROM ${newTables[0].name} LIMIT 20;`
+      );
     }
     setQueryColumns([]);
     setQueryRows([]);
@@ -204,7 +323,9 @@ export const RelationalSqlStudioAgent: React.FC<RelationalSqlStudioAgentProps> =
 
   // Reset database to seed
   const handleResetDb = () => {
-    const seed = JSON.parse(JSON.stringify(STARTER_DATABASES[activeDbKey].tables));
+    const target = allDatabases[activeDbKey];
+    if (!target) return;
+    const seed = JSON.parse(JSON.stringify(target.tables));
     setDatabase(seed);
     setAffectedMessage("Database reset to original seed data.");
     setQueryError(null);
@@ -220,26 +341,61 @@ export const RelationalSqlStudioAgent: React.FC<RelationalSqlStudioAgentProps> =
     const startTime = performance.now();
 
     try {
-      // 1. SELECT query parsing
-      const selectMatch = trimmed.match(/^SELECT\s+(.+?)\s+FROM\s+([a-zA-Z0-9_]+)(.*)$/i);
+      // 1. SELECT query parsing (with optional JOIN support)
+      const selectMatch = trimmed.match(/^SELECT\s+(.+?)\s+FROM\s+([a-zA-Z0-9_]+)(?:\s+(?:(LEFT|INNER)\s+)?JOIN\s+([a-zA-Z0-9_]+)\s+ON\s+([a-zA-Z0-9_.]+)\s*=\s*([a-zA-Z0-9_.]+))?(.*)$/i);
       if (selectMatch) {
         const fieldsRaw = selectMatch[1].trim();
-        const tableName = selectMatch[2].trim().toLowerCase();
-        const rest = selectMatch[3].trim();
+        const primaryTable = selectMatch[2].trim().toLowerCase();
+        const isJoined = Boolean(selectMatch[4]);
+        const joinType = (selectMatch[3] || "INNER").toUpperCase();
+        const joinedTable = selectMatch[4] ? selectMatch[4].trim().toLowerCase() : "";
+        const joinLeft = selectMatch[5] ? selectMatch[5].trim() : "";
+        const joinRight = selectMatch[6] ? selectMatch[6].trim() : "";
+        const rest = selectMatch[7].trim();
 
-        const table = database.find(t => t.name.toLowerCase() === tableName);
+        const table = database.find(t => t.name.toLowerCase() === primaryTable);
         if (!table) {
-          throw new Error(`Table '${tableName}' does not exist in active database.`);
+          throw new Error(`Table '${primaryTable}' does not exist in active database.`);
         }
 
-        let filteredRows = [...table.rows];
+        let combinedRows: Record<string, any>[] = [];
+
+        if (isJoined) {
+          const secondTable = database.find(t => t.name.toLowerCase() === joinedTable);
+          if (!secondTable) {
+            throw new Error(`Joined table '${joinedTable}' does not exist.`);
+          }
+
+          // Parse join condition columns
+          const cleanCol = (colStr: string) => {
+            const parts = colStr.split(".");
+            return parts[parts.length - 1];
+          };
+          const leftCol = cleanCol(joinLeft);
+          const rightCol = cleanCol(joinRight);
+
+          table.rows.forEach(pRow => {
+            const matches = secondTable.rows.filter(sRow => {
+              return String(pRow[leftCol] ?? pRow[rightCol]) === String(sRow[rightCol] ?? sRow[leftCol]);
+            });
+
+            if (matches.length > 0) {
+              matches.forEach(mRow => {
+                combinedRows.push({ ...pRow, ...mRow });
+              });
+            } else if (joinType === "LEFT") {
+              combinedRows.push({ ...pRow });
+            }
+          });
+        } else {
+          combinedRows = [...table.rows];
+        }
 
         // Parse WHERE clause
         const whereMatch = rest.match(/WHERE\s+(.+?)(ORDER\s+BY|LIMIT|;|$)/i);
         if (whereMatch) {
           const condition = whereMatch[1].trim();
-          // Support simple operators: =, !=, >, <, >=, <=, LIKE
-          filteredRows = filteredRows.filter(row => {
+          combinedRows = combinedRows.filter(row => {
             return evaluateSimpleCondition(condition, row);
           });
         }
@@ -250,7 +406,7 @@ export const RelationalSqlStudioAgent: React.FC<RelationalSqlStudioAgentProps> =
           const orderCol = orderMatch[1].trim();
           const isDesc = (orderMatch[2] || "").trim().toUpperCase() === "DESC";
 
-          filteredRows.sort((a, b) => {
+          combinedRows.sort((a, b) => {
             const valA = a[orderCol];
             const valB = b[orderCol];
             if (valA === valB) return 0;
@@ -265,25 +421,28 @@ export const RelationalSqlStudioAgent: React.FC<RelationalSqlStudioAgentProps> =
         if (limitMatch) {
           const limitNum = parseInt(limitMatch[1], 10);
           if (!isNaN(limitNum)) {
-            filteredRows = filteredRows.slice(0, limitNum);
+            combinedRows = combinedRows.slice(0, limitNum);
           }
         }
 
         // Determine Columns
         let finalCols: string[] = [];
         if (fieldsRaw === "*") {
-          finalCols = table.columns.map(c => c.name);
+          finalCols = Object.keys(combinedRows[0] || (table.columns.reduce((acc, c) => ({ ...acc, [c.name]: 1 }), {})));
         } else {
-          finalCols = fieldsRaw.split(",").map(f => f.trim().replace(/^[`'"]|[`'"]$/g, ""));
+          finalCols = fieldsRaw.split(",").map(f => {
+            const raw = f.trim().replace(/^[`'"]|[`'"]$/g, "");
+            return raw.includes(".") ? raw.split(".").pop()! : raw;
+          });
         }
 
         setQueryColumns(finalCols);
-        setQueryRows(filteredRows);
+        setQueryRows(combinedRows);
         setExecutionTimeMs(Math.round(performance.now() - startTime));
-        setAffectedMessage(`Retrieved ${filteredRows.length} rows.`);
+        setAffectedMessage(`Retrieved ${combinedRows.length} rows.`);
 
         if (onAddLog) {
-          onAddLog("sql_exec", `Executed SELECT on '${tableName}' -> ${filteredRows.length} rows`);
+          onAddLog("sql_exec", `Executed SELECT on '${primaryTable}' -> ${combinedRows.length} rows`);
         }
         return;
       }
@@ -317,7 +476,109 @@ export const RelationalSqlStudioAgent: React.FC<RelationalSqlStudioAgentProps> =
         return;
       }
 
-      // 3. DELETE FROM query
+      // 3. UPDATE query
+      const updateMatch = trimmed.match(/^UPDATE\s+([a-zA-Z0-9_]+)\s+SET\s+(.+?)(?:\s+WHERE\s+(.+?))?(;|$)/i);
+      if (updateMatch) {
+        const tableName = updateMatch[1].trim().toLowerCase();
+        const setClause = updateMatch[2].trim();
+        const condition = updateMatch[3] ? updateMatch[3].trim() : "";
+
+        const table = database.find(t => t.name.toLowerCase() === tableName);
+        if (!table) throw new Error(`Table '${tableName}' does not exist.`);
+
+        // Parse setters (e.g. col1 = 'val', col2 = 10)
+        const assignments: { col: string; val: any }[] = [];
+        const rawSets = setClause.split(",");
+        for (const item of rawSets) {
+          const [c, ...vParts] = item.split("=");
+          if (c && vParts.length > 0) {
+            const rawV = vParts.join("=").trim();
+            let parsedVal: any = rawV;
+            if (/^['"].*['"]$/.test(rawV)) parsedVal = rawV.slice(1, -1);
+            else if (!isNaN(Number(rawV))) parsedVal = Number(rawV);
+            else if (rawV.toLowerCase() === "true") parsedVal = true;
+            else if (rawV.toLowerCase() === "false") parsedVal = false;
+            else if (rawV.toLowerCase() === "null") parsedVal = null;
+            assignments.push({ col: c.trim(), val: parsedVal });
+          }
+        }
+
+        let updatedCount = 0;
+        table.rows.forEach(row => {
+          if (!condition || evaluateSimpleCondition(condition, row)) {
+            assignments.forEach(a => {
+              row[a.col] = a.val;
+            });
+            updatedCount++;
+          }
+        });
+
+        setDatabase([...database]);
+        setAffectedMessage(`Updated ${updatedCount} rows in '${tableName}'.`);
+        setQueryColumns(table.columns.map(c => c.name));
+        setQueryRows(table.rows);
+        setExecutionTimeMs(Math.round(performance.now() - startTime));
+        return;
+      }
+
+      // 4. CREATE TABLE query
+      const createMatch = trimmed.match(/^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)\s*\((.+?)\)/is);
+      if (createMatch) {
+        const tableName = createMatch[1].trim().toLowerCase();
+        if (database.some(t => t.name.toLowerCase() === tableName)) {
+          throw new Error(`Table '${tableName}' already exists.`);
+        }
+
+        const colDefs = createMatch[2].split(",").map(c => c.trim()).filter(Boolean);
+        const parsedCols: SqlTable["columns"] = [];
+
+        colDefs.forEach(def => {
+          const parts = def.split(/\s+/).filter(Boolean);
+          if (parts.length >= 2) {
+            const colName = parts[0].replace(/^[`'"]|[`'"]$/g, "");
+            const rawType = parts[1].toUpperCase();
+            let type: "INTEGER" | "TEXT" | "REAL" | "BOOLEAN" = "TEXT";
+            if (rawType.includes("INT") || rawType.includes("SERIAL")) type = "INTEGER";
+            else if (rawType.includes("REAL") || rawType.includes("FLOAT") || rawType.includes("DECIMAL") || rawType.includes("NUMERIC")) type = "REAL";
+            else if (rawType.includes("BOOL")) type = "BOOLEAN";
+
+            const isPk = def.toUpperCase().includes("PRIMARY KEY");
+            parsedCols.push({ name: colName, type, isPk });
+          }
+        });
+
+        const newTable: SqlTable = {
+          name: tableName,
+          columns: parsedCols,
+          rows: []
+        };
+
+        setDatabase(prev => [...prev, newTable]);
+        setAffectedMessage(`Table '${tableName}' created successfully with ${parsedCols.length} columns.`);
+        setQueryColumns(parsedCols.map(c => c.name));
+        setQueryRows([]);
+        setExecutionTimeMs(Math.round(performance.now() - startTime));
+        return;
+      }
+
+      // 5. DROP TABLE query
+      const dropMatch = trimmed.match(/^DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?([a-zA-Z0-9_]+)/i);
+      if (dropMatch) {
+        const tableName = dropMatch[1].trim().toLowerCase();
+        const exists = database.some(t => t.name.toLowerCase() === tableName);
+        if (!exists) {
+          throw new Error(`Table '${tableName}' does not exist.`);
+        }
+
+        setDatabase(prev => prev.filter(t => t.name.toLowerCase() !== tableName));
+        setAffectedMessage(`Table '${tableName}' dropped.`);
+        setQueryColumns([]);
+        setQueryRows([]);
+        setExecutionTimeMs(Math.round(performance.now() - startTime));
+        return;
+      }
+
+      // 6. DELETE FROM query
       const deleteMatch = trimmed.match(/^DELETE\s+FROM\s+([a-zA-Z0-9_]+)(\s+WHERE\s+(.+?))?(;|$)/i);
       if (deleteMatch) {
         const tableName = deleteMatch[1].trim().toLowerCase();
@@ -342,7 +603,7 @@ export const RelationalSqlStudioAgent: React.FC<RelationalSqlStudioAgentProps> =
         return;
       }
 
-      throw new Error("Syntax error: Currently supports SELECT, INSERT INTO, and DELETE FROM statements.");
+      throw new Error("Syntax error: Currently supports SELECT (with optional JOIN), INSERT, UPDATE, DELETE, CREATE TABLE, and DROP TABLE.");
     } catch (err: any) {
       setQueryError(err?.message || "Failed to execute SQL statement.");
       setQueryColumns([]);
@@ -524,7 +785,7 @@ Explanation: One short sentence explaining how it works.`;
               isDark ? "bg-zinc-900 border-zinc-700 text-zinc-200" : "bg-slate-100 border-slate-300 text-slate-700"
             }`}
           >
-            {Object.entries(STARTER_DATABASES).map(([k, v]) => (
+            {Object.entries(allDatabases).map(([k, v]) => (
               <option key={k} value={k}>{v.label}</option>
             ))}
           </select>

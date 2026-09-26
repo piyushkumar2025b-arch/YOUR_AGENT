@@ -12,11 +12,13 @@ import dns from "dns";
 import { runIsolatedExecution, runDiagnosticSandboxAudit } from "./src/services/sandboxRunner.js";
 import { userPersistence, UserRecord } from "./src/services/userAuthPersistence.js";
 import { getActiveFreeModels } from "./src/services/openRouterModelService.js";
+import { WebSocketServer, WebSocket as WsWebSocket } from "ws";
 
 const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", "loopback");
 const httpServer = createServer(app);
+const wss = new WebSocketServer({ noServer: true });
 
 const PORT = 3000;
 
@@ -562,6 +564,331 @@ function getCanonicalPublicOrigin(req: express.Request): string {
   }
   return "http://localhost:3000";
 }
+
+// ==========================================
+// CORE SYSTEM HEALTH & REALTIME STREAM ROUTES
+// ==========================================
+app.get("/api/health", (req, res) => {
+  systemTelemetry.totalRequests++;
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  return res.json({
+    status: "healthy",
+    uptimeSeconds: Math.round(process.uptime()),
+    timestamp: Date.now(),
+    memoryUsageMb: {
+      rss: Math.round(process.memoryUsage().rss / 1048576),
+      heapTotal: Math.round(process.memoryUsage().heapTotal / 1048576),
+      heapUsed: Math.round(process.memoryUsage().heapUsed / 1048576)
+    },
+    nodeVersion: process.version,
+    platform: process.platform,
+    serverTime: new Date().toISOString()
+  });
+});
+
+app.get("/api/system/status", (req, res) => {
+  systemTelemetry.totalRequests++;
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  const cpus = os.cpus();
+  return res.json({
+    status: "online",
+    service: "AI Studio Cloud Engine",
+    uptimeSeconds: Math.round(process.uptime()),
+    timestamp: Date.now(),
+    memory: {
+      rssMb: Math.round(process.memoryUsage().rss / 1048576),
+      heapTotalMb: Math.round(process.memoryUsage().heapTotal / 1048576),
+      heapUsedMb: Math.round(process.memoryUsage().heapUsed / 1048576),
+      systemFreeMemMb: Math.round(os.freemem() / 1048576),
+      systemTotalMemMb: Math.round(os.totalmem() / 1048576)
+    },
+    cpu: {
+      cores: cpus.length,
+      model: cpus[0]?.model || "vCPU",
+      loadavg: os.loadavg()
+    },
+    os: {
+      platform: os.platform(),
+      release: os.release(),
+      arch: os.arch(),
+      hostname: os.hostname()
+    },
+    telemetry: {
+      totalRequests: systemTelemetry.totalRequests,
+      cacheHits: systemTelemetry.cacheHits,
+      cacheMisses: systemTelemetry.cacheMisses,
+      rateLimitBlocks: systemTelemetry.rateLimitBlocks
+    }
+  });
+});
+
+// Real Server-Sent Events (SSE) Live Feed
+app.get("/api/stream/sse", (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("Access-Control-Allow-Origin", "*");
+
+  // Send initial connected packet
+  res.write(`data: ${JSON.stringify({ event: "connected", message: "SSE Realtime Channel Established", timestamp: Date.now() })}\n\n`);
+
+  let count = 0;
+  const timer = setInterval(() => {
+    count++;
+    const heapUsed = Math.round(process.memoryUsage().heapUsed / 1048576);
+    const payload = {
+      event: "heartbeat",
+      seq: count,
+      timestamp: Date.now(),
+      serverUptime: Math.round(process.uptime()),
+      heapUsedMb: heapUsed,
+      activeClients: io.engine ? io.engine.clientsCount : 1
+    };
+    try {
+      res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    } catch {
+      clearInterval(timer);
+    }
+  }, 2000);
+
+  req.on("close", () => {
+    clearInterval(timer);
+    res.end();
+  });
+});
+
+// Echo Route for API testing
+app.all("/api/echo", express.json(), (req, res) => {
+  return res.json({
+    method: req.method,
+    url: req.originalUrl || req.url,
+    headers: req.headers,
+    query: req.query,
+    body: req.body,
+    timestamp: Date.now()
+  });
+});
+
+// ==========================================
+// HTTP PROXY & CLIENT EXECUTION ROUTES
+// ==========================================
+async function executeProxiedRequest(targetUrl: string, method: string = "GET", headers: Record<string, string> = {}, body?: any) {
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(targetUrl.startsWith("/") ? `http://127.0.0.1:${PORT}${targetUrl}` : targetUrl);
+  } catch (e: any) {
+    throw new Error(`Invalid URL: ${e.message}`);
+  }
+
+  // Security SSRF check
+  if (parsedUrl.hostname === "169.254.169.254" || parsedUrl.hostname.includes("metadata.google.internal")) {
+    throw new Error("Access to cloud metadata address is strictly prohibited.");
+  }
+
+  // Filter and sanitize request headers
+  const sanitizedHeaders: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    const lKey = key.toLowerCase();
+    if (!["host", "connection", "content-length", "transfer-encoding"].includes(lKey)) {
+      sanitizedHeaders[key] = String(value);
+    }
+  }
+
+  const startTime = performance.now();
+  const abortCtrl = new AbortController();
+  const timeoutTimer = setTimeout(() => abortCtrl.abort(), 20000);
+
+  let reqBody: any = undefined;
+  const upperMethod = (method || "GET").toUpperCase();
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(upperMethod) && body !== undefined) {
+    if (typeof body === "string") {
+      reqBody = body;
+    } else {
+      reqBody = JSON.stringify(body);
+      if (!sanitizedHeaders["Content-Type"] && !sanitizedHeaders["content-type"]) {
+        sanitizedHeaders["Content-Type"] = "application/json";
+      }
+    }
+  }
+
+  try {
+    const upstreamRes = await fetch(parsedUrl.toString(), {
+      method: upperMethod,
+      headers: sanitizedHeaders,
+      body: reqBody,
+      signal: abortCtrl.signal,
+      redirect: "follow"
+    });
+    clearTimeout(timeoutTimer);
+
+    const timeMs = Math.round(performance.now() - startTime);
+    const contentType = upstreamRes.headers.get("content-type") || "";
+
+    const responseHeaders: Record<string, string> = {};
+    upstreamRes.headers.forEach((val, key) => {
+      responseHeaders[key] = val;
+    });
+
+    let data: any;
+    let sizeBytes = 0;
+    if (contentType.includes("application/json")) {
+      data = await upstreamRes.json().catch(() => null);
+      sizeBytes = JSON.stringify(data || "").length;
+    } else {
+      data = await upstreamRes.text();
+      sizeBytes = (data as string).length;
+    }
+
+    return {
+      status: upstreamRes.status,
+      statusText: upstreamRes.statusText,
+      timeMs,
+      sizeBytes,
+      headers: responseHeaders,
+      data
+    };
+  } catch (err: any) {
+    clearTimeout(timeoutTimer);
+    throw new Error(err.name === "AbortError" ? "Request timed out after 20,000ms" : err.message);
+  }
+}
+
+// Endpoint used by ApiClientStudioAgent and GraphQLExplorerStudioAgent
+app.post("/api/http-client/execute", express.json({ limit: "10mb" }), async (req, res) => {
+  systemTelemetry.totalRequests++;
+  const { url, method = "GET", headers = {}, body } = req.body || {};
+  if (!url || typeof url !== "string") {
+    return res.status(400).json({ error: "Missing required 'url' parameter in request body." });
+  }
+
+  try {
+    const result = await executeProxiedRequest(url, method, headers, body);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(502).json({
+      status: 502,
+      statusText: "Bad Gateway",
+      timeMs: 0,
+      sizeBytes: 0,
+      headers: {},
+      error: err.message || "Failed to execute request",
+      data: null
+    });
+  }
+});
+
+// Endpoint used by LoadStressBenchmarkStudioAgent and NetworkTrafficHarStudioAgent
+app.all("/api/proxy", express.json({ limit: "10mb" }), async (req, res) => {
+  systemTelemetry.totalRequests++;
+  const targetUrl = (req.query.url as string) || (req.body?.url as string);
+  if (!targetUrl) {
+    return res.status(400).json({ error: "Missing required 'url' query parameter or body property." });
+  }
+
+  const method = req.method === "GET" || req.method === "POST" ? (req.query.method as string || req.body?.method || req.method) : req.method;
+  const headers = req.body?.headers || {};
+  const body = req.body?.body !== undefined ? req.body.body : req.body;
+
+  try {
+    const result = await executeProxiedRequest(targetUrl, method, headers, method !== "GET" ? body : undefined);
+    return res.status(result.status).json(result.data !== null ? result.data : result);
+  } catch (err: any) {
+    return res.status(502).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// REALTIME WEBSOCKET SERVER (/ws)
+// ==========================================
+wss.on("connection", (ws: WsWebSocket) => {
+  console.log("[WebSocket] Client connected on /ws. Total clients:", wss.clients.size);
+
+  // Send initial welcome frame
+  ws.send(JSON.stringify({
+    event: "connected",
+    message: "Live WebSocket Connection Established with AI Studio Engine",
+    serverTime: Date.now(),
+    uptimeSeconds: Math.round(process.uptime()),
+    clientsOnline: wss.clients.size
+  }));
+
+  // Periodic heartbeat with live system metrics
+  const heartbeatTimer = setInterval(() => {
+    if (ws.readyState === ws.OPEN) {
+      ws.send(JSON.stringify({
+        event: "heartbeat",
+        timestamp: Date.now(),
+        heapUsedMb: Math.round(process.memoryUsage().heapUsed / 1048576),
+        activeConnections: wss.clients.size
+      }));
+    }
+  }, 4000);
+
+  ws.on("message", (data: any) => {
+    try {
+      const text = typeof data === "string" ? data : data.toString("utf8");
+      let parsed: any;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        parsed = { raw: text };
+      }
+
+      // Check if this is a ping message
+      if (parsed.pingId || parsed.type === "ping") {
+        ws.send(JSON.stringify({
+          type: "pong",
+          pingId: parsed.pingId,
+          clientTimestamp: parsed.timestamp,
+          serverTimestamp: Date.now(),
+          latencyMs: Date.now() - (parsed.timestamp || Date.now())
+        }));
+        return;
+      }
+
+      // Echo message
+      if (parsed.type === "echo") {
+        ws.send(JSON.stringify({
+          type: "echo",
+          payload: parsed.payload || parsed,
+          timestamp: Date.now()
+        }));
+        return;
+      }
+
+      // Broadcast to other clients
+      if (parsed.type === "broadcast") {
+        const payload = JSON.stringify({
+          type: "broadcast",
+          sender: "client",
+          payload: parsed.payload,
+          timestamp: Date.now()
+        });
+        wss.clients.forEach(client => {
+          if (client !== ws && client.readyState === client.OPEN) {
+            client.send(payload);
+          }
+        });
+        ws.send(JSON.stringify({ type: "ack", message: "Broadcast dispatched", timestamp: Date.now() }));
+        return;
+      }
+
+      // Default echo
+      ws.send(JSON.stringify({
+        type: "ack",
+        echoed: parsed,
+        timestamp: Date.now()
+      }));
+    } catch (err: any) {
+      ws.send(JSON.stringify({ error: err.message }));
+    }
+  });
+
+  ws.on("close", () => {
+    clearInterval(heartbeatTimer);
+    console.log("[WebSocket] Client disconnected. Remaining clients:", wss.clients.size);
+  });
+});
 
 // GitHub OAuth endpoints
 app.get("/api/auth/github/url", (req, res) => {
@@ -6209,6 +6536,19 @@ async function startServer() {
     httpServer.close(() => {
       process.exit(0);
     });
+  });
+
+  httpServer.on("upgrade", (request, socket, head) => {
+    try {
+      const parsed = new URL(request.url || "", "http://127.0.0.1");
+      if (parsed.pathname === "/ws" || parsed.pathname === "/ws/") {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          wss.emit("connection", ws, request);
+        });
+      }
+    } catch (err: any) {
+      console.warn("WebSocket upgrade error:", err?.message);
+    }
   });
 
   httpServer.listen(PORT, "0.0.0.0", () => {

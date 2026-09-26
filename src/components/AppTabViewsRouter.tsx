@@ -1137,6 +1137,7 @@ export const AppTabViewsRouter: React.FC<AppTabViewsRouterProps> = React.memo(({
       {activeTab === "sql-studio" && (
         <div className="w-full h-full flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
           <RelationalSqlStudioAgent
+            files={files}
             apiKey={apiKey}
             selectedModel={selectedModel}
             theme={theme}

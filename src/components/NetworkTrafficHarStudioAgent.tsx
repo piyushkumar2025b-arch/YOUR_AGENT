@@ -58,102 +58,13 @@ export interface NetworkRequestItem {
   responseBody?: string;
 }
 
-const DEFAULT_NETWORK_LOGS: NetworkRequestItem[] = [
-  {
-    id: "req-1",
-    url: "https://api.remixstudio.dev/v1/auth/session",
-    method: "GET",
-    status: 200,
-    statusText: "OK",
-    type: "fetch",
-    durationMs: 142,
-    sizeBytes: 1240,
-    timestamp: Date.now() - 32000,
-    timings: { dnsMs: 12, connectMs: 24, sslMs: 28, ttfbMs: 62, downloadMs: 16 },
-    requestHeaders: {
-      "Accept": "application/json",
-      "Authorization": "Bearer tok_live_session_9841",
-      "User-Agent": "RemixStudio/3.4 (CloudAgent)"
-    },
-    responseHeaders: {
-      "content-type": "application/json; charset=utf-8",
-      "cache-control": "private, max-age=3600",
-      "x-request-id": "req_8492019a8"
-    },
-    responseBody: JSON.stringify({
-      user: { id: "usr_9921", name: "Alex Rivera", role: "lead_architect" },
-      expiresAt: new Date(Date.now() + 86400000).toISOString()
-    }, null, 2)
-  },
-  {
-    id: "req-2",
-    url: "https://api.remixstudio.dev/v1/projects/active/build",
-    method: "POST",
-    status: 201,
-    statusText: "Created",
-    type: "fetch",
-    durationMs: 385,
-    sizeBytes: 4210,
-    timestamp: Date.now() - 18000,
-    timings: { dnsMs: 4, connectMs: 18, sslMs: 22, ttfbMs: 310, downloadMs: 31 },
-    requestHeaders: {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer tok_live_session_9841"
-    },
-    responseHeaders: {
-      "content-type": "application/json; charset=utf-8",
-      "x-build-worker": "worker-asia-east1-c"
-    },
-    requestBody: JSON.stringify({
-      target: "production",
-      optimizeBundle: true,
-      sourcemaps: false
-    }, null, 2),
-    responseBody: JSON.stringify({
-      buildId: "bld_774129",
-      status: "completed",
-      artifacts: { bundleSizeKb: 184.2, gzippedKb: 48.6 }
-    }, null, 2)
-  },
-  {
-    id: "req-3",
-    url: "https://telemetry.remixstudio.dev/collect",
-    method: "POST",
-    status: 204,
-    statusText: "No Content",
-    type: "xhr",
-    durationMs: 88,
-    sizeBytes: 0,
-    timestamp: Date.now() - 10000,
-    timings: { dnsMs: 2, connectMs: 12, sslMs: 15, ttfbMs: 52, downloadMs: 7 },
-    requestHeaders: { "Content-Type": "application/json" },
-    responseHeaders: { "x-telemetry-status": "accepted" },
-    requestBody: JSON.stringify({ event: "HEARTBEAT", clientVersion: "3.4.0" })
-  },
-  {
-    id: "req-4",
-    url: "https://api.external-vendor.com/v2/rates",
-    method: "GET",
-    status: 429,
-    statusText: "Too Many Requests",
-    type: "fetch",
-    durationMs: 195,
-    sizeBytes: 310,
-    timestamp: Date.now() - 4000,
-    timings: { dnsMs: 18, connectMs: 35, sslMs: 42, ttfbMs: 90, downloadMs: 10 },
-    requestHeaders: { "Accept": "application/json" },
-    responseHeaders: { "retry-after": "60", "content-type": "application/json" },
-    responseBody: JSON.stringify({ error: "Rate limit exceeded. Maximum 60 requests per minute." }, null, 2)
-  }
-];
-
 export const NetworkTrafficHarStudioAgent: React.FC<NetworkTrafficHarStudioAgentProps> = ({
   theme,
   onSaveFile,
   onAddLog
 }) => {
-  const [requests, setRequests] = useState<NetworkRequestItem[]>(DEFAULT_NETWORK_LOGS);
-  const [selectedRequestId, setSelectedRequestId] = useState<string>("req-1");
+  const [requests, setRequests] = useState<NetworkRequestItem[]>([]);
+  const [selectedRequestId, setSelectedRequestId] = useState<string>("");
   const [searchFilter, setSearchFilter] = useState<string>("");
   const [methodFilter, setMethodFilter] = useState<string>("ALL");
   const [activeTab, setActiveTab] = useState<"waterfall" | "curl" | "har" | "mock">("waterfall");
@@ -302,38 +213,101 @@ executeApiCall();`;
   const [liveReqBody, setLiveReqBody] = useState<string>('{\n  "query": "test"\n}');
   const [isSendingLiveReq, setIsSendingLiveReq] = useState<boolean>(false);
 
-  // Auto-capture browser network resources on initial load
+  // Auto-capture real browser network resources & execute real server probe on initial load
   useEffect(() => {
-    const entries = performance.getEntriesByType("resource") as PerformanceResourceTiming[];
-    if (entries.length > 0) {
-      const realItems: NetworkRequestItem[] = entries.slice(-12).map((e, idx) => {
-        const durationMs = Math.round(e.duration);
-        const ttfb = Math.max(Math.round(e.responseStart - e.requestStart), 8);
-        const isApi = e.name.includes("/api/");
-        return {
-          id: `perf-${idx}-${Date.now()}`,
-          url: e.name,
+    const fetchRealData = async () => {
+      const items: NetworkRequestItem[] = [];
+
+      // 1. Fetch live real health endpoint
+      try {
+        const start = performance.now();
+        const res = await fetch("/api/health");
+        const dur = Math.max(Math.round(performance.now() - start), 4);
+        const data = await res.json();
+        const resHeaders: Record<string, string> = {};
+        res.headers.forEach((val, key) => { resHeaders[key] = val; });
+        const text = JSON.stringify(data, null, 2);
+
+        items.push({
+          id: `req-health-${Date.now()}`,
+          url: `${window.location.origin}/api/health`,
           method: "GET",
-          status: 200,
-          statusText: "OK",
-          type: e.name.endsWith(".js") ? "script" : e.name.endsWith(".css") ? "stylesheet" : isApi ? "fetch" : "fetch",
-          durationMs: Math.max(durationMs, 10),
-          sizeBytes: Math.round(e.transferSize || e.encodedBodySize || 1200),
-          timestamp: Date.now() - Math.round(performance.now() - e.startTime),
-          timings: {
-            dnsMs: Math.max(Math.round(e.domainLookupEnd - e.domainLookupStart), 2),
-            connectMs: Math.max(Math.round(e.connectEnd - e.connectStart), 4),
-            sslMs: 6,
-            ttfbMs: ttfb,
-            downloadMs: Math.max(Math.round(e.responseEnd - e.responseStart), 4)
-          },
-          requestHeaders: { "Accept": "*/*", "User-Agent": navigator.userAgent },
-          responseHeaders: { "content-type": isApi ? "application/json" : "application/javascript" },
-          responseBody: isApi ? JSON.stringify({ status: "ok" }, null, 2) : undefined
-        };
-      });
-      setRequests(prev => [...realItems, ...prev.slice(0, 3)]);
-    }
+          status: res.status,
+          statusText: res.statusText || "OK",
+          type: "fetch",
+          durationMs: dur,
+          sizeBytes: text.length,
+          timestamp: Date.now(),
+          timings: { dnsMs: 1, connectMs: 2, sslMs: 4, ttfbMs: Math.max(dur - 4, 2), downloadMs: 3 },
+          requestHeaders: { "Accept": "application/json" },
+          responseHeaders: resHeaders,
+          responseBody: text
+        });
+      } catch {}
+
+      // 2. Fetch live real system status endpoint
+      try {
+        const start = performance.now();
+        const res = await fetch("/api/system/status");
+        const dur = Math.max(Math.round(performance.now() - start), 4);
+        const data = await res.json();
+        const resHeaders: Record<string, string> = {};
+        res.headers.forEach((val, key) => { resHeaders[key] = val; });
+        const text = JSON.stringify(data, null, 2);
+
+        items.push({
+          id: `req-status-${Date.now()}`,
+          url: `${window.location.origin}/api/system/status`,
+          method: "GET",
+          status: res.status,
+          statusText: res.statusText || "OK",
+          type: "fetch",
+          durationMs: dur,
+          sizeBytes: text.length,
+          timestamp: Date.now(),
+          timings: { dnsMs: 1, connectMs: 2, sslMs: 4, ttfbMs: Math.max(dur - 4, 2), downloadMs: 3 },
+          requestHeaders: { "Accept": "application/json" },
+          responseHeaders: resHeaders,
+          responseBody: text
+        });
+      } catch {}
+
+      // 3. Capture real browser resource timings
+      const entries = performance.getEntriesByType("resource") as PerformanceResourceTiming[];
+      if (entries.length > 0) {
+        entries.slice(-12).forEach((e, idx) => {
+          const durationMs = Math.max(Math.round(e.duration), 5);
+          const ttfb = Math.max(Math.round(e.responseStart - e.requestStart), 4);
+          const isApi = e.name.includes("/api/");
+          items.push({
+            id: `perf-${idx}-${Date.now()}`,
+            url: e.name,
+            method: "GET",
+            status: 200,
+            statusText: "OK",
+            type: e.name.endsWith(".js") ? "script" : e.name.endsWith(".css") ? "stylesheet" : isApi ? "fetch" : "fetch",
+            durationMs,
+            sizeBytes: Math.round(e.transferSize || e.encodedBodySize || 1200),
+            timestamp: Date.now() - Math.round(performance.now() - e.startTime),
+            timings: {
+              dnsMs: Math.max(Math.round(e.domainLookupEnd - e.domainLookupStart), 2),
+              connectMs: Math.max(Math.round(e.connectEnd - e.connectStart), 4),
+              sslMs: 6,
+              ttfbMs: ttfb,
+              downloadMs: Math.max(Math.round(e.responseEnd - e.responseStart), 2)
+            },
+            requestHeaders: { "Accept": "*/*", "User-Agent": navigator.userAgent },
+            responseHeaders: { "content-type": e.name.endsWith(".css") ? "text/css" : isApi ? "application/json" : "application/javascript" },
+            responseBody: isApi ? JSON.stringify({ status: "active" }, null, 2) : undefined
+          });
+        });
+      }
+
+      setRequests(items);
+      if (items.length > 0) setSelectedRequestId(items[0].id);
+    };
+
+    fetchRealData();
   }, []);
 
   const handleCaptureRealNetwork = () => {
@@ -374,7 +348,10 @@ executeApiCall();`;
     showToast(`Sending ${liveReqMethod} ${liveReqUrl}...`);
     const start = performance.now();
     try {
-      const res = await fetch(liveReqUrl, {
+      const fetchTarget = liveReqUrl.startsWith("/")
+        ? liveReqUrl
+        : (liveReqUrl.startsWith("http") ? `/api/proxy?url=${encodeURIComponent(liveReqUrl)}` : liveReqUrl);
+      const res = await fetch(fetchTarget, {
         method: liveReqMethod,
         headers: liveReqMethod === "POST" ? { "Content-Type": "application/json" } : undefined,
         body: liveReqMethod === "POST" ? liveReqBody : undefined

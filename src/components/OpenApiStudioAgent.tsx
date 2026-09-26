@@ -79,122 +79,87 @@ export interface SchemaModelDef {
 const DEFAULT_ENDPOINTS: EndpointDef[] = [
   {
     id: "ep-1",
-    path: "/api/users",
+    path: "/api/health",
     method: "GET",
-    summary: "List all active users",
-    description: "Retrieve a paginated list of registered team members and their roles.",
-    tags: ["Users"],
-    parameters: [
-      { name: "page", in: "query", required: false, type: "integer", description: "Page number index", defaultValue: "1" },
-      { name: "limit", in: "query", required: false, type: "integer", description: "Items per page (max 100)", defaultValue: "20" },
-      { name: "search", in: "query", required: false, type: "string", description: "Search query by name or email", defaultValue: "" }
-    ],
+    summary: "System Health & Uptime Status",
+    description: "Returns server uptime, memory consumption, node version, and system operational health status.",
+    tags: ["System"],
+    parameters: [],
     responses: [
       {
         status: 200,
-        description: "List of users successfully retrieved",
+        description: "Server is healthy and operational",
         exampleJson: JSON.stringify({
-          data: [
-            { id: "usr_1", name: "Alex Rivera", email: "alex@example.com", role: "lead_architect", active: true },
-            { id: "usr_2", name: "Sophia Chen", email: "sophia@example.com", role: "fullstack_dev", active: true }
-          ],
-          total: 2,
-          page: 1,
-          limit: 20
+          status: "healthy",
+          uptimeSeconds: 120,
+          timestamp: Date.now(),
+          nodeVersion: "v22.0.0",
+          platform: "linux"
         }, null, 2)
-      },
-      {
-        status: 401,
-        description: "Unauthorized - missing or invalid Bearer token",
-        exampleJson: JSON.stringify({ error: "Unauthorized access token" }, null, 2)
       }
     ]
   },
   {
     id: "ep-2",
-    path: "/api/users",
-    method: "POST",
-    summary: "Register new workspace user",
-    description: "Creates a new user profile with allocated role and initial workspace credentials.",
-    tags: ["Users"],
+    path: "/api/system/status",
+    method: "GET",
+    summary: "Comprehensive System Diagnostics & Telemetry",
+    description: "Returns CPU cores, memory utilization, cache stats, and system telemetry metrics.",
+    tags: ["System"],
     parameters: [],
-    requestBodyJson: JSON.stringify({
-      name: "Marcus Vance",
-      email: "marcus.v@example.com",
-      role: "developer",
-      department: "Engineering"
-    }, null, 2),
     responses: [
       {
-        status: 201,
-        description: "User created successfully",
+        status: 200,
+        description: "System diagnostic metrics retrieved",
         exampleJson: JSON.stringify({
-          id: "usr_3",
-          name: "Marcus Vance",
-          email: "marcus.v@example.com",
-          role: "developer",
-          createdAt: new Date().toISOString()
+          status: "online",
+          service: "AI Studio Cloud Engine",
+          uptimeSeconds: 240,
+          memory: { rssMb: 85, heapUsedMb: 42 }
         }, null, 2)
-      },
-      {
-        status: 400,
-        description: "Validation error on payload",
-        exampleJson: JSON.stringify({ error: "Email already registered in system" }, null, 2)
       }
     ]
   },
   {
     id: "ep-3",
-    path: "/api/projects/{projectId}",
+    path: "/api/crypto/live",
     method: "GET",
-    summary: "Get project details by ID",
-    description: "Fetch comprehensive project configuration, metrics and environment secrets status.",
-    tags: ["Projects"],
-    parameters: [
-      { name: "projectId", in: "path", required: true, type: "string", description: "Unique UUID of the target project", defaultValue: "prj_98271" }
-    ],
+    summary: "Live Cryptocurrency Market Ticker",
+    description: "Fetches live price data, 24-hour percentage shifts, and volume for major crypto pairs.",
+    tags: ["Market"],
+    parameters: [],
     responses: [
       {
         status: 200,
-        description: "Project configuration retrieved",
+        description: "Live crypto prices retrieved",
         exampleJson: JSON.stringify({
-          id: "prj_98271",
-          name: "Omni Cloud Suite",
-          status: "healthy",
-          buildStatus: "passing",
-          environment: "production",
-          updatedAt: new Date().toISOString()
+          source: "Binance Live Ticker",
+          data: [{ id: "bitcoin", name: "Bitcoin", symbol: "btc", current_price: 92450 }]
         }, null, 2)
-      },
-      {
-        status: 404,
-        description: "Project not found",
-        exampleJson: JSON.stringify({ error: "Project ID does not exist" }, null, 2)
       }
     ]
   },
   {
     id: "ep-4",
-    path: "/api/analytics/events",
+    path: "/api/echo",
     method: "POST",
-    summary: "Ingest telemetry event batch",
-    description: "Streams telemetry, telemetry latency metrics, or user interaction beacons.",
-    tags: ["Analytics"],
+    summary: "Echo Request Inspector",
+    description: "Echoes back the received method, headers, query parameters, and JSON payload for API testing.",
+    tags: ["Testing"],
     parameters: [],
     requestBodyJson: JSON.stringify({
-      eventType: "PAGE_VIEW",
-      sessionId: "sess_4829104",
-      metadata: {
-        path: "/dashboard",
-        durationMs: 4200,
-        device: "desktop"
-      }
+      message: "Testing API echo",
+      timestamp: Date.now()
     }, null, 2),
     responses: [
       {
         status: 200,
-        description: "Batch ingested successfully",
-        exampleJson: JSON.stringify({ success: true, processedEvents: 1, serverTimestamp: Date.now() }, null, 2)
+        description: "Request echoed back successfully",
+        exampleJson: JSON.stringify({
+          method: "POST",
+          url: "/api/echo",
+          body: { message: "Testing API echo" }
+        }, null, 2)
       }
     ]
   }
