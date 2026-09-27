@@ -791,13 +791,13 @@ app.all("/api/proxy", express.json({ limit: "10mb" }), async (req, res) => {
 
   try {
     const result = await executeProxiedRequest(targetUrl, method, headers, method !== "GET" ? body : undefined);
-    const upstreamContentType = result.headers["content-type"] || (typeof result.data === "string" ? "text/plain; charset=utf-8" : "application/json");
-    res.status(result.status);
-    res.setHeader("Content-Type", upstreamContentType);
-    if (typeof result.data === "string") {
-      return res.send(result.data);
+    if (result.headers && result.headers["content-type"]) {
+      res.setHeader("Content-Type", result.headers["content-type"]);
+    }
+    if (typeof result.data === "object" && result.data !== null) {
+      return res.status(result.status).json(result.data);
     } else {
-      return res.json(result.data !== null ? result.data : result);
+      return res.status(result.status).send(result.data !== null ? result.data : "");
     }
   } catch (err: any) {
     return res.status(502).json({ error: err.message });
@@ -2826,47 +2826,6 @@ app.get("/api/space/astros", cacheMiddleware(60), async (req, res) => {
 });
 
 // 6. Live Weather via Open-Meteo (10-minute cache)
-app.get("/api/weather", cacheMiddleware(300), async (req, res) => {
-  const city = String(req.query.city || req.query.q || "").trim();
-  const cityCoords: Record<string, { lat: number; lon: number }> = {
-    tokyo: { lat: 35.6762, lon: 139.6503 },
-    "new york": { lat: 40.7128, lon: -74.0060 },
-    london: { lat: 51.5074, lon: -0.1278 },
-    paris: { lat: 48.8566, lon: 2.3522 },
-    berlin: { lat: 52.5200, lon: 13.4050 },
-    "san francisco": { lat: 37.7749, lon: -122.4194 },
-    sydney: { lat: -33.8688, lon: 151.2093 }
-  };
-
-  let lat = parseFloat(req.query.lat as string);
-  let lon = parseFloat(req.query.lon as string);
-
-  if (isNaN(lat) || isNaN(lon)) {
-    const cleanCity = city.toLowerCase();
-    if (cityCoords[cleanCity]) {
-      lat = cityCoords[cleanCity].lat;
-      lon = cityCoords[cleanCity].lon;
-    } else {
-      lat = 37.7749;
-      lon = -122.4194;
-    }
-  }
-
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&hourly=temperature_2m,weathercode,relativehumidity_2m&daily=weathercode,temperature_2m_max,temperature_2m_min,sunrise,sunset&timezone=auto`;
-  try {
-    const resp = await fetchWithRetry(url, {}, 2, 400);
-    const data = await resp.json();
-    return res.json({ city: city || "San Francisco", lat, lon, ...data });
-  } catch (err: any) {
-    return res.json({
-      city: city || "San Francisco",
-      lat,
-      lon,
-      current_weather: { temperature: 21.0, windspeed: 8.5, weathercode: 1, time: new Date().toISOString() }
-    });
-  }
-});
-
 app.get("/api/weather/:lat/:lon", cacheMiddleware(600), async (req, res) => {
   const lat = parseFloat(req.params.lat) || 37.7749;
   const lon = parseFloat(req.params.lon) || -122.4194;
@@ -4687,7 +4646,7 @@ async function isSafeDestination(hostname: string): Promise<{ safe: boolean; rea
 }
 
 // General Purpose External HTTP Proxy with Comprehensive SSRF Protection (BUG-003, BUG-09, BUG-10)
-app.all("/api/proxy", async (req, res: any) => {
+app.all("/api/secure-proxy", async (req, res: any) => {
   // Require authentication to prevent unauthenticated public SSRF proxying
   if (!isAuthorizedForExecution(req)) {
     return res.status(401).json({ error: "Unauthorized: Valid authentication token is required for proxy access." });

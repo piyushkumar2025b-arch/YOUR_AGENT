@@ -79,6 +79,121 @@ export default function SeoMetaOpenGraphStudioAgent({
   const [themeColor, setThemeColor] = useState("#0f172a");
   const [schemaType, setSchemaType] = useState<"SoftwareApplication" | "WebSite" | "Organization" | "Article">("SoftwareApplication");
 
+  // Live Website Inspector State
+  const [liveUrlInput, setLiveUrlInput] = useState<string>("https://github.com");
+  const [isInspectingUrl, setIsInspectingUrl] = useState<boolean>(false);
+  const [inspectError, setInspectError] = useState<string | null>(null);
+  const [lastInspectedDomain, setLastInspectedDomain] = useState<string | null>(null);
+  const [inspectSummary, setInspectSummary] = useState<{ tagsFound: number; hasOgImage: boolean; hasJsonLd: boolean } | null>(null);
+
+  const handleInspectLiveUrl = async (targetUrlToFetch?: string) => {
+    const rawUrl = (targetUrlToFetch || liveUrlInput).trim();
+    if (!rawUrl) return;
+
+    let validUrl = rawUrl;
+    if (!validUrl.startsWith("http://") && !validUrl.startsWith("https://")) {
+      validUrl = `https://${validUrl}`;
+      setLiveUrlInput(validUrl);
+    }
+
+    setIsInspectingUrl(true);
+    setInspectError(null);
+    onAddLog?.("network", `Inspecting live website metadata from: ${validUrl}`);
+
+    try {
+      const proxyEndpoint = `/api/proxy?url=${encodeURIComponent(validUrl)}`;
+      const res = await fetch(proxyEndpoint);
+      if (!res.ok) {
+        throw new Error(`Upstream server returned HTTP ${res.status}: ${res.statusText}`);
+      }
+
+      const html = await res.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+
+      // Extract real tags
+      const extractedTitle =
+        doc.querySelector('meta[property="og:title"]')?.getAttribute("content") ||
+        doc.querySelector("title")?.textContent?.trim() ||
+        doc.querySelector('meta[name="twitter:title"]')?.getAttribute("content") ||
+        "";
+
+      const extractedDesc =
+        doc.querySelector('meta[name="description"]')?.getAttribute("content") ||
+        doc.querySelector('meta[property="og:description"]')?.getAttribute("content") ||
+        doc.querySelector('meta[name="twitter:description"]')?.getAttribute("content") ||
+        "";
+
+      const extractedCanonical =
+        doc.querySelector('link[rel="canonical"]')?.getAttribute("href") ||
+        doc.querySelector('meta[property="og:url"]')?.getAttribute("content") ||
+        validUrl;
+
+      let extractedOgImage =
+        doc.querySelector('meta[property="og:image"]')?.getAttribute("content") ||
+        doc.querySelector('meta[name="twitter:image"]')?.getAttribute("content") ||
+        "";
+
+      if (extractedOgImage && extractedOgImage.startsWith("/")) {
+        try {
+          extractedOgImage = new URL(extractedOgImage, validUrl).toString();
+        } catch {}
+      }
+
+      const extractedKeywords =
+        doc.querySelector('meta[name="keywords"]')?.getAttribute("content") || "";
+
+      const extractedAuthor =
+        doc.querySelector('meta[name="author"]')?.getAttribute("content") ||
+        doc.querySelector('meta[property="og:site_name"]')?.getAttribute("content") ||
+        new URL(validUrl).hostname;
+
+      const twitterCard =
+        (doc.querySelector('meta[name="twitter:card"]')?.getAttribute("content") as any) ||
+        "summary_large_image";
+
+      const jsonLdScript = doc.querySelector('script[type="application/ld+json"]');
+      const hasJsonLd = !!jsonLdScript;
+
+      if (extractedTitle) setPageTitle(extractedTitle);
+      if (extractedDesc) setMetaDescription(extractedDesc);
+      if (extractedCanonical) setCanonicalUrl(extractedCanonical);
+      if (extractedOgImage) setOgImageUrl(extractedOgImage);
+      if (extractedKeywords) setKeywords(extractedKeywords);
+      if (extractedAuthor) setAuthor(extractedAuthor);
+      if (twitterCard === "summary" || twitterCard === "summary_large_image") {
+        setTwitterCardType(twitterCard);
+      }
+
+      let tagsCount = 0;
+      if (extractedTitle) tagsCount++;
+      if (extractedDesc) tagsCount++;
+      if (extractedOgImage) tagsCount++;
+      if (extractedKeywords) tagsCount++;
+      if (extractedCanonical) tagsCount++;
+      if (hasJsonLd) tagsCount++;
+
+      try {
+        setLastInspectedDomain(new URL(validUrl).hostname);
+      } catch {
+        setLastInspectedDomain(validUrl);
+      }
+
+      setInspectSummary({
+        tagsFound: tagsCount,
+        hasOgImage: !!extractedOgImage,
+        hasJsonLd
+      });
+
+      onAddLog?.("info", `Extracted ${tagsCount} live metadata attributes from ${validUrl}`);
+    } catch (err: any) {
+      setInspectError(err.message || "Failed to inspect live URL");
+      onAddLog?.("error", `Failed to inspect live URL ${validUrl}: ${err.message}`);
+    } finally {
+      setIsInspectingUrl(false);
+    }
+  };
+
   // View tabs
   const [activeTab, setActiveTab] = useState<"previews" | "tags" | "schema" | "sitemap" | "robots">("previews");
   const [previewPlatform, setPreviewPlatform] = useState<"google" | "twitter" | "facebook" | "discord">("google");
@@ -88,65 +203,6 @@ export default function SeoMetaOpenGraphStudioAgent({
   // Character Count Calculations & SEO Health
   const titleLength = pageTitle.length;
   const descLength = metaDescription.length;
-
-  // Live URL Inspector State
-  const [inspectUrl, setInspectUrl] = useState("");
-  const [isInspecting, setIsInspecting] = useState(false);
-  const [inspectError, setInspectError] = useState<string | null>(null);
-
-  const handleInspectLiveUrl = async () => {
-    if (!inspectUrl.trim()) return;
-    setIsInspecting(true);
-    setInspectError(null);
-
-    try {
-      let cleanUrl = inspectUrl.trim();
-      if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
-        cleanUrl = `https://${cleanUrl}`;
-      }
-
-      const res = await fetch(`/api/proxy?url=${encodeURIComponent(cleanUrl)}`);
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-      const htmlText = await res.text();
-
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(htmlText, "text/html");
-
-      const title = doc.querySelector("title")?.textContent ||
-                    doc.querySelector('meta[property="og:title"]')?.getAttribute("content") ||
-                    doc.querySelector('meta[name="twitter:title"]')?.getAttribute("content") || "";
-
-      const desc = doc.querySelector('meta[name="description"]')?.getAttribute("content") ||
-                   doc.querySelector('meta[property="og:description"]')?.getAttribute("content") ||
-                   doc.querySelector('meta[name="twitter:description"]')?.getAttribute("content") || "";
-
-      let ogImg = doc.querySelector('meta[property="og:image"]')?.getAttribute("content") ||
-                  doc.querySelector('meta[name="twitter:image"]')?.getAttribute("content") || "";
-
-      if (ogImg && !ogImg.startsWith("http")) {
-        try {
-          ogImg = new URL(ogImg, cleanUrl).toString();
-        } catch {}
-      }
-
-      const kw = doc.querySelector('meta[name="keywords"]')?.getAttribute("content") || "";
-      const auth = doc.querySelector('meta[name="author"]')?.getAttribute("content") || "";
-
-      if (title) setPageTitle(title.trim());
-      if (desc) setMetaDescription(desc.trim());
-      if (ogImg) setOgImageUrl(ogImg.trim());
-      if (kw) setKeywords(kw.trim());
-      if (auth) setAuthor(auth.trim());
-      setCanonicalUrl(cleanUrl);
-
-      showToast(`Successfully extracted SEO metadata from ${new URL(cleanUrl).hostname}!`);
-      if (onAddLog) onAddLog("analyze", `Extracted SEO tags from ${cleanUrl}`);
-    } catch (err: any) {
-      setInspectError(err?.message || "Failed to inspect URL");
-    } finally {
-      setIsInspecting(false);
-    }
-  };
 
   const titleStatus = useMemo(() => {
     if (titleLength >= 50 && titleLength <= 60) return { label: "Optimal (50-60 chars)", color: "text-emerald-400" };
@@ -445,6 +501,87 @@ Sitemap: ${canonicalUrl}/sitemap.xml
         </div>
       </div>
 
+      {/* Live Website URL Inspector Bar */}
+      <div className={`px-5 py-2.5 border-b flex flex-wrap items-center justify-between gap-3 text-xs ${theme === "dark" ? "border-slate-800 bg-slate-900/40" : "border-slate-200 bg-cyan-50/50"}`}>
+        <div className="flex-1 min-w-[280px] max-w-2xl flex items-center gap-2">
+          <span className="text-[11px] font-semibold text-slate-400 whitespace-nowrap flex items-center gap-1.5">
+            <Globe className="w-3.5 h-3.5 text-cyan-400" /> Live URL Inspector:
+          </span>
+          <div className="relative flex-1 flex items-center">
+            <input
+              type="url"
+              value={liveUrlInput}
+              onChange={e => setLiveUrlInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") handleInspectLiveUrl(); }}
+              placeholder="https://example.com, https://github.com..."
+              className={`w-full pl-3 pr-20 py-1.5 rounded-lg text-xs border font-mono transition-all focus:outline-none focus:ring-1 focus:ring-cyan-500 ${
+                theme === "dark"
+                  ? "bg-slate-950 border-slate-700 text-slate-200 placeholder-slate-500"
+                  : "bg-white border-slate-300 text-slate-800 placeholder-slate-400"
+              }`}
+            />
+            <button
+              onClick={() => handleInspectLiveUrl()}
+              disabled={isInspectingUrl || !liveUrlInput.trim()}
+              className="absolute right-1 px-2.5 py-1 rounded-md bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-medium text-[11px] flex items-center gap-1 transition-all"
+            >
+              {isInspectingUrl ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Fetching...</span>
+                </>
+              ) : (
+                <>
+                  <Search className="w-3 h-3" />
+                  <span>Inspect Live</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Quick Presets & Status */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] text-slate-400 uppercase font-semibold">Presets:</span>
+          {[
+            { label: "GitHub", url: "https://github.com" },
+            { label: "Vite", url: "https://vite.dev" },
+            { label: "React", url: "https://react.dev" },
+            { label: "Hacker News", url: "https://news.ycombinator.com" }
+          ].map(preset => (
+            <button
+              key={preset.label}
+              onClick={() => {
+                setLiveUrlInput(preset.url);
+                handleInspectLiveUrl(preset.url);
+              }}
+              disabled={isInspectingUrl}
+              className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                theme === "dark"
+                  ? "border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-300"
+                  : "border-slate-300 bg-white hover:bg-slate-100 text-slate-700"
+              }`}
+            >
+              {preset.label}
+            </button>
+          ))}
+
+          {lastInspectedDomain && inspectSummary && !isInspectingUrl && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px]">
+              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+              <span>Real live metadata from <strong>{lastInspectedDomain}</strong> ({inspectSummary.tagsFound} tags)</span>
+            </div>
+          )}
+
+          {inspectError && !isInspectingUrl && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[11px]">
+              <AlertTriangle className="w-3 h-3 text-rose-400" />
+              <span className="truncate max-w-[200px]">{inspectError}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Main Workspace Layout */}
       <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
         {/* Left Form Editor */}
@@ -453,36 +590,6 @@ Sitemap: ${canonicalUrl}/sitemap.xml
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
               <Sliders className="w-3.5 h-3.5 text-cyan-500" /> Metadata Architect
             </span>
-          </div>
-
-          {/* Live URL Inspector Bar */}
-          <div className={`p-2.5 rounded-lg border space-y-2 ${theme === "dark" ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1">
-              <Globe className="w-3 h-3" /> Live URL Inspector
-            </span>
-            <div className="flex gap-1.5">
-              <input
-                type="text"
-                placeholder="https://example.com"
-                value={inspectUrl}
-                onChange={e => setInspectUrl(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") handleInspectLiveUrl(); }}
-                className={`flex-1 px-2 py-1 text-xs rounded border outline-none font-mono ${
-                  theme === "dark" ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-slate-50 border-slate-300 text-slate-800"
-                }`}
-              />
-              <button
-                onClick={handleInspectLiveUrl}
-                disabled={isInspecting || !inspectUrl.trim()}
-                className="px-2.5 py-1 text-xs font-semibold rounded bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white shrink-0 flex items-center gap-1"
-              >
-                {isInspecting ? <span className="animate-spin">⌛</span> : <Search className="w-3 h-3" />}
-                <span>Fetch</span>
-              </button>
-            </div>
-            {inspectError && (
-              <p className="text-[10px] text-rose-400">{inspectError}</p>
-            )}
           </div>
 
           {/* Page Title */}
