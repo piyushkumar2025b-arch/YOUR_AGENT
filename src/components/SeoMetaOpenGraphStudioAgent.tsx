@@ -89,6 +89,65 @@ export default function SeoMetaOpenGraphStudioAgent({
   const titleLength = pageTitle.length;
   const descLength = metaDescription.length;
 
+  // Live URL Inspector State
+  const [inspectUrl, setInspectUrl] = useState("");
+  const [isInspecting, setIsInspecting] = useState(false);
+  const [inspectError, setInspectError] = useState<string | null>(null);
+
+  const handleInspectLiveUrl = async () => {
+    if (!inspectUrl.trim()) return;
+    setIsInspecting(true);
+    setInspectError(null);
+
+    try {
+      let cleanUrl = inspectUrl.trim();
+      if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
+        cleanUrl = `https://${cleanUrl}`;
+      }
+
+      const res = await fetch(`/api/proxy?url=${encodeURIComponent(cleanUrl)}`);
+      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+      const htmlText = await res.text();
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlText, "text/html");
+
+      const title = doc.querySelector("title")?.textContent ||
+                    doc.querySelector('meta[property="og:title"]')?.getAttribute("content") ||
+                    doc.querySelector('meta[name="twitter:title"]')?.getAttribute("content") || "";
+
+      const desc = doc.querySelector('meta[name="description"]')?.getAttribute("content") ||
+                   doc.querySelector('meta[property="og:description"]')?.getAttribute("content") ||
+                   doc.querySelector('meta[name="twitter:description"]')?.getAttribute("content") || "";
+
+      let ogImg = doc.querySelector('meta[property="og:image"]')?.getAttribute("content") ||
+                  doc.querySelector('meta[name="twitter:image"]')?.getAttribute("content") || "";
+
+      if (ogImg && !ogImg.startsWith("http")) {
+        try {
+          ogImg = new URL(ogImg, cleanUrl).toString();
+        } catch {}
+      }
+
+      const kw = doc.querySelector('meta[name="keywords"]')?.getAttribute("content") || "";
+      const auth = doc.querySelector('meta[name="author"]')?.getAttribute("content") || "";
+
+      if (title) setPageTitle(title.trim());
+      if (desc) setMetaDescription(desc.trim());
+      if (ogImg) setOgImageUrl(ogImg.trim());
+      if (kw) setKeywords(kw.trim());
+      if (auth) setAuthor(auth.trim());
+      setCanonicalUrl(cleanUrl);
+
+      showToast(`Successfully extracted SEO metadata from ${new URL(cleanUrl).hostname}!`);
+      if (onAddLog) onAddLog("analyze", `Extracted SEO tags from ${cleanUrl}`);
+    } catch (err: any) {
+      setInspectError(err?.message || "Failed to inspect URL");
+    } finally {
+      setIsInspecting(false);
+    }
+  };
+
   const titleStatus = useMemo(() => {
     if (titleLength >= 50 && titleLength <= 60) return { label: "Optimal (50-60 chars)", color: "text-emerald-400" };
     if (titleLength < 50) return { label: "Short (< 50 chars)", color: "text-amber-400" };
@@ -394,6 +453,36 @@ Sitemap: ${canonicalUrl}/sitemap.xml
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
               <Sliders className="w-3.5 h-3.5 text-cyan-500" /> Metadata Architect
             </span>
+          </div>
+
+          {/* Live URL Inspector Bar */}
+          <div className={`p-2.5 rounded-lg border space-y-2 ${theme === "dark" ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1">
+              <Globe className="w-3 h-3" /> Live URL Inspector
+            </span>
+            <div className="flex gap-1.5">
+              <input
+                type="text"
+                placeholder="https://example.com"
+                value={inspectUrl}
+                onChange={e => setInspectUrl(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") handleInspectLiveUrl(); }}
+                className={`flex-1 px-2 py-1 text-xs rounded border outline-none font-mono ${
+                  theme === "dark" ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-slate-50 border-slate-300 text-slate-800"
+                }`}
+              />
+              <button
+                onClick={handleInspectLiveUrl}
+                disabled={isInspecting || !inspectUrl.trim()}
+                className="px-2.5 py-1 text-xs font-semibold rounded bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white shrink-0 flex items-center gap-1"
+              >
+                {isInspecting ? <span className="animate-spin">⌛</span> : <Search className="w-3 h-3" />}
+                <span>Fetch</span>
+              </button>
+            </div>
+            {inspectError && (
+              <p className="text-[10px] text-rose-400">{inspectError}</p>
+            )}
           </div>
 
           {/* Page Title */}
