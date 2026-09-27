@@ -69,7 +69,7 @@ import {
   FileJson
 } from "lucide-react";
 
-export type ToolCategory = "core" | "music" | "ai" | "web" | "dev" | "data" | "media";
+export type ToolCategory = "core" | "music" | "ai" | "web" | "dev" | "data" | "media" | "new";
 
 export interface TabItem {
   id: string;
@@ -178,6 +178,7 @@ export const WORKSPACE_TABS: TabItem[] = [
 
 export const CATEGORY_DEFINITIONS: { id: ToolCategory | "all"; label: string; icon: string }[] = [
   { id: "all", label: "All Tools", icon: "✨" },
+  { id: "new", label: "New & Pro Tools", icon: "🔥" },
   { id: "core", label: "Core Dev", icon: "💻" },
   { id: "music", label: "Music & Audio", icon: "🎵" },
   { id: "ai", label: "AI Agents", icon: "🤖" },
@@ -262,6 +263,9 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = memo(({
     if (activeCategoryFilter === "all") {
       return WORKSPACE_TABS;
     }
+    if (activeCategoryFilter === "new") {
+      return WORKSPACE_TABS.filter(t => t.badge === "New" || t.badge === "Pro");
+    }
     return WORKSPACE_TABS.filter(t => t.category === activeCategoryFilter);
   }, [barMode, activeCategoryFilter]);
 
@@ -273,13 +277,16 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = memo(({
   // Search filtered tabs for the Full Menu Modal
   const modalFilteredTabs = useMemo(() => {
     return WORKSPACE_TABS.filter(tab => {
-      const matchesCategory = activeCategoryFilter === "all" || tab.category === activeCategoryFilter;
+      const matchesCategory =
+        activeCategoryFilter === "all" ||
+        (activeCategoryFilter === "new" ? (tab.badge === "New" || tab.badge === "Pro") : tab.category === activeCategoryFilter);
       const q = searchQuery.toLowerCase().trim();
       const matchesSearch = !q ||
         tab.label.toLowerCase().includes(q) ||
         tab.description.toLowerCase().includes(q) ||
         tab.id.toLowerCase().includes(q) ||
-        tab.category.toLowerCase().includes(q);
+        tab.category.toLowerCase().includes(q) ||
+        (tab.badge && tab.badge.toLowerCase().includes(q));
       return matchesCategory && matchesSearch;
     });
   }, [searchQuery, activeCategoryFilter]);
