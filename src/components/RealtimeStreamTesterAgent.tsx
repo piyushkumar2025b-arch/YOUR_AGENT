@@ -614,7 +614,7 @@ export const realtimeClient = new RealtimeStreamClient();
             <button
               onClick={() => {
                 setProtocol("websocket");
-                setEndpointUrl("wss://ws.postman-echo.com/raw");
+                setEndpointUrl(getLocalWsUrl());
               }}
               className={`px-3 py-1 rounded font-medium transition-colors ${
                 protocol === "websocket" ? "bg-purple-600 text-white" : "text-slate-400 hover:text-white"
@@ -625,7 +625,7 @@ export const realtimeClient = new RealtimeStreamClient();
             <button
               onClick={() => {
                 setProtocol("sse");
-                setEndpointUrl("https://sse.dev/test");
+                setEndpointUrl("/api/stream/sse");
               }}
               className={`px-3 py-1 rounded font-medium transition-colors ${
                 protocol === "sse" ? "bg-purple-600 text-white" : "text-slate-400 hover:text-white"

@@ -585,6 +585,8 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = memo(({
                   const isSelected = activeCategoryFilter === cat.id;
                   const count = cat.id === "all"
                     ? WORKSPACE_TABS.length
+                    : cat.id === "new"
+                    ? WORKSPACE_TABS.filter(t => t.badge === "New" || t.badge === "Pro").length
                     : WORKSPACE_TABS.filter(t => t.category === cat.id).length;
                   return (
                     <button
@@ -682,6 +684,19 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = memo(({
                         }`}>
                           {tab.description}
                         </p>
+
+                        {/* Bottom humanized action hint */}
+                        <div className={`mt-3 pt-2 border-t flex items-center justify-between text-[10px] ${
+                          isDark ? "border-zinc-800/80 text-zinc-500" : "border-slate-100 text-slate-400"
+                        }`}>
+                          <span className="flex items-center gap-1 font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            <span>Live & Interactive</span>
+                          </span>
+                          <span className="text-indigo-400 font-semibold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
+                            Open Tool →
+                          </span>
+                        </div>
                       </div>
                     );
                   })}

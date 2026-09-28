@@ -599,6 +599,44 @@ export function generateSecureToken(byteLength: number = 32): string {
                 <span className="text-[11px] text-slate-500 font-mono">Header.Payload.Signature</span>
               </div>
 
+              {/* Humanized JWT Presets */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Presets:</span>
+                {[
+                  {
+                    label: "👑 Admin User",
+                    payload: { sub: "usr_admin_101", name: "Alex (Lead Admin)", role: "admin", exp: Math.floor(Date.now() / 1000) + 86400, iss: "remix-studio" }
+                  },
+                  {
+                    label: "👤 Standard User",
+                    payload: { sub: "usr_std_202", name: "Taylor Swift", role: "member", exp: Math.floor(Date.now() / 1000) + 86400, iss: "remix-studio" }
+                  },
+                  {
+                    label: "⏰ Expired Token",
+                    payload: { sub: "usr_exp_303", name: "Jordan Expired", role: "viewer", exp: Math.floor(Date.now() / 1000) - 3600, iss: "remix-studio" }
+                  },
+                  {
+                    label: "🔑 Microservice API",
+                    payload: { sub: "srv_billing_worker", scope: "read:billing write:invoices", exp: Math.floor(Date.now() / 1000) + 3600, iss: "auth.remixstudio.internal" }
+                  }
+                ].map(preset => (
+                  <button
+                    key={preset.label}
+                    onClick={() => {
+                      setJwtPayloadJson(JSON.stringify(preset.payload, null, 2));
+                      showToast(`Loaded "${preset.label}" payload!`);
+                    }}
+                    className={`px-2 py-1 rounded-md text-[11px] font-medium border transition-colors ${
+                      theme === "dark"
+                        ? "bg-slate-800/80 border-slate-700 hover:bg-slate-700 text-slate-300"
+                        : "bg-white border-slate-300 hover:bg-slate-100 text-slate-700"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+
               <textarea
                 value={encodedJwt}
                 onChange={e => handleDecodeRawJwt(e.target.value)}

@@ -214,6 +214,14 @@ export const TrendingGithubRepos: React.FC = () => {
     localStorage.setItem("github_pat", token);
   };
 
+  const safeGithubFetch = async (targetUrl: string) => {
+    try {
+      const direct = await fetch(targetUrl, { headers: getHeaders() });
+      if (direct.ok) return direct;
+    } catch {}
+    return fetch(`/api/proxy?url=${encodeURIComponent(targetUrl)}`, { headers: getHeaders() });
+  };
+
   const fetchTrendingRepos = async (overrideQuery?: string) => {
     setLoading(true);
     setError(null);
@@ -224,7 +232,7 @@ export const TrendingGithubRepos: React.FC = () => {
       if (trimmedCustom.includes("/")) {
         // Direct Owner/Repo lookup
         url = `https://api.github.com/repos/${trimmedCustom}`;
-        const res = await fetch(url, { headers: getHeaders() });
+        const res = await safeGithubFetch(url);
         updateRateLimitFromHeaders(res);
         if (res.ok) {
           const repoData = await res.json();
@@ -240,7 +248,7 @@ export const TrendingGithubRepos: React.FC = () => {
       const langQuery = selectedLang !== "All" ? `+language:${selectedLang.toLowerCase()}` : "";
       url = `https://api.github.com/search/repositories?q=${qStr}${langQuery}&sort=stars&order=desc&per_page=30`;
 
-      const res = await fetch(url, { headers: getHeaders() });
+      const res = await safeGithubFetch(url);
       updateRateLimitFromHeaders(res);
 
       if (!res.ok) {
@@ -286,7 +294,7 @@ export const TrendingGithubRepos: React.FC = () => {
     setReadmeLoading(true);
     setReadmeContent("");
     try {
-      const res = await fetch(`https://api.github.com/repos/${repo.full_name}/readme`, { headers: getHeaders() });
+      const res = await safeGithubFetch(`https://api.github.com/repos/${repo.full_name}/readme`);
       if (res.ok) {
         const data = await res.json();
         if (data.content) {
@@ -307,7 +315,7 @@ export const TrendingGithubRepos: React.FC = () => {
   const fetchRepoCommits = async (repo: GithubRepo) => {
     setCommitsLoading(true);
     try {
-      const res = await fetch(`https://api.github.com/repos/${repo.full_name}/commits?per_page=15`, { headers: getHeaders() });
+      const res = await safeGithubFetch(`https://api.github.com/repos/${repo.full_name}/commits?per_page=15`);
       if (res.ok) {
         const data = await res.json();
         setCommits(data);
@@ -322,7 +330,7 @@ export const TrendingGithubRepos: React.FC = () => {
   const fetchRepoReleases = async (repo: GithubRepo) => {
     setReleasesLoading(true);
     try {
-      const res = await fetch(`https://api.github.com/repos/${repo.full_name}/releases?per_page=10`, { headers: getHeaders() });
+      const res = await safeGithubFetch(`https://api.github.com/repos/${repo.full_name}/releases?per_page=10`);
       if (res.ok) {
         const data = await res.json();
         setReleases(data);
@@ -337,7 +345,7 @@ export const TrendingGithubRepos: React.FC = () => {
   const fetchRepoFiles = async (repo: GithubRepo) => {
     setFilesLoading(true);
     try {
-      const res = await fetch(`https://api.github.com/repos/${repo.full_name}/contents`, { headers: getHeaders() });
+      const res = await safeGithubFetch(`https://api.github.com/repos/${repo.full_name}/contents`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) setFiles(data);

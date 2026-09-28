@@ -519,6 +519,40 @@ runBenchmark().catch(console.error);
             </span>
           </div>
 
+          {/* Humanized Quick Presets */}
+          <div className="space-y-1.5 p-2.5 rounded-xl border border-amber-500/20 bg-amber-500/5">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 flex items-center gap-1">
+              <Zap className="w-3 h-3" /> Quick Test Presets
+            </span>
+            <div className="grid grid-cols-2 gap-1.5">
+              {[
+                { label: "⚡ Smoke Test", url: "/api/health", vus: 5, duration: 5, method: "GET" as const },
+                { label: "🔥 Standard Load", url: "/api/health", vus: 20, duration: 10, method: "GET" as const },
+                { label: "💥 High Spike", url: "/api/crypto/live", vus: 40, duration: 10, method: "GET" as const },
+                { label: "🌐 Live External", url: "https://httpbin.org/get", vus: 10, duration: 8, method: "GET" as const }
+              ].map(preset => (
+                <button
+                  key={preset.label}
+                  disabled={isRunning}
+                  onClick={() => {
+                    setTargetUrl(preset.url);
+                    setConcurrency(preset.vus);
+                    setDurationSeconds(preset.duration);
+                    setHttpMethod(preset.method);
+                  }}
+                  className={`p-1.5 rounded-md border text-left text-[11px] font-medium transition-colors ${
+                    targetUrl === preset.url && concurrency === preset.vus
+                      ? "bg-amber-500/20 border-amber-500 text-amber-300 font-bold"
+                      : "border-slate-700/60 bg-slate-800/40 text-slate-300 hover:bg-slate-800"
+                  }`}
+                >
+                  <div className="truncate">{preset.label}</div>
+                  <div className="text-[9px] text-slate-400 font-mono">{preset.vus} VUs • {preset.duration}s</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Target URL */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-slate-300">Target Endpoint URL</label>
