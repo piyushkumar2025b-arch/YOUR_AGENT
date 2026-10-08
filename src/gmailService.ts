@@ -12,6 +12,8 @@ provider.addScope("https://www.googleapis.com/auth/drive");
 
 // Flag to indicate if we are in the middle of a sign-in flow
 let isSigningIn = false;
+const GMAIL_SESSION_TOKEN_KEY = "gmail_oauth_access_token";
+
 // Cache the access token in memory
 let cachedAccessToken: string | null = null;
 
@@ -22,6 +24,11 @@ export const initAuth = (
 ) => {
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
+      if (!cachedAccessToken && typeof window !== "undefined") {
+        try {
+          cachedAccessToken = sessionStorage.getItem(GMAIL_SESSION_TOKEN_KEY);
+        } catch {}
+      }
       if (cachedAccessToken) {
         if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
       } else if (!isSigningIn) {
@@ -31,6 +38,11 @@ export const initAuth = (
       }
     } else {
       cachedAccessToken = null;
+      if (typeof window !== "undefined") {
+        try {
+          sessionStorage.removeItem(GMAIL_SESSION_TOKEN_KEY);
+        } catch {}
+      }
       if (onAuthFailure) onAuthFailure();
     }
   });
@@ -47,11 +59,20 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     }
 
     cachedAccessToken = credential.accessToken;
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.removeItem(GMAIL_SESSION_TOKEN_KEY);
+      } catch {}
+    }
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
     if (error?.code === "auth/popup-closed-by-user" || error?.message?.includes("popup-closed-by-user")) {
       console.warn("Google sign-in popup was closed by the user.");
       return null;
+    }
+    if (error?.code === "auth/api-key-not-valid" || error?.message?.includes("api-key-not-valid")) {
+      console.warn("Firebase Auth API key invalid or pending synchronization:", error?.message);
+      throw new Error("Google Authentication API key is synchronizing. Please try again or paste a Google OAuth Access Token directly.");
     }
     console.error("Sign in error:", error);
     throw error;
@@ -67,6 +88,11 @@ export const getAccessToken = async (): Promise<string | null> => {
 export const logout = async () => {
   await auth.signOut();
   cachedAccessToken = null;
+  if (typeof window !== "undefined") {
+    try {
+      sessionStorage.removeItem(GMAIL_SESSION_TOKEN_KEY);
+    } catch {}
+  }
 };
 
 // ----------------------------------------------------
@@ -251,11 +277,35 @@ export const sendEmail = async (
   subject: string,
   body: string
 ): Promise<any> => {
-  if (!to.trim()) throw new Error("Recipient email (To) is required.");
+  if (!to || !to.trim()) {
+    throw new Error("Recipient email (To) is required.");
+  }
+
+  if (/[\r\n]/.test(to)) {
+    throw new Error("Recipient contains invalid newline characters.");
+  }
+
+  if (/[\r\n]/.test(subject)) {
+    throw new Error("Subject contains invalid newline characters.");
+  }
+
+  const recipients = to
+    .split(",")
+    .map((val) => val.trim())
+    .filter(Boolean);
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (
+    recipients.length === 0 ||
+    recipients.length > 50 ||
+    recipients.some((email) => !emailRegex.test(email))
+  ) {
+    throw new Error("One or more recipient addresses are invalid.");
+  }
 
   // Build standard RFC 2822 email layout
   const rawEmail = [
-    `To: ${to}`,
+    `To: ${recipients.join(", ")}`,
     `Subject: =?utf-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
     `Content-Type: text/html; charset=utf-8`,
     `MIME-Version: 1.0`,

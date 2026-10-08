@@ -18,11 +18,25 @@ export const GitHubSync: React.FC<GitHubSyncProps> = ({
   onAddLog
 }) => {
   const [config, setConfig] = useState<GitHubSyncConfig>(() => {
-    const saved = localStorage.getItem("github_sync_config");
-    if (saved) {
-      try { return JSON.parse(saved); } catch {}
-    }
-    return { token: "", repoOwner: "", repoName: "", branch: "main" };
+    let repoOwner = "";
+    let repoName = "";
+    let branch = "main";
+    let lastSyncedAt: string | undefined = undefined;
+
+    try {
+      const saved = localStorage.getItem("github_sync_settings");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        repoOwner = parsed.repoOwner || "";
+        repoName = parsed.repoName || "";
+        branch = parsed.branch || "main";
+        lastSyncedAt = parsed.lastSyncedAt;
+      }
+      // Purge legacy storage that held tokens
+      localStorage.removeItem("github_sync_config");
+    } catch {}
+
+    return { token: "", repoOwner, repoName, branch, lastSyncedAt };
   });
 
   const [commitMessage, setCommitMessage] = useState<string>("Sync workspace files via AI Studio Code Agent");
@@ -34,7 +48,18 @@ export const GitHubSync: React.FC<GitHubSyncProps> = ({
 
   const saveConfig = (newCfg: GitHubSyncConfig) => {
     setConfig(newCfg);
-    localStorage.setItem("github_sync_config", JSON.stringify(newCfg));
+    // Never persist PAT token to localStorage; store only non-secret repository settings
+    try {
+      localStorage.setItem(
+        "github_sync_settings",
+        JSON.stringify({
+          repoOwner: newCfg.repoOwner,
+          repoName: newCfg.repoName,
+          branch: newCfg.branch,
+          lastSyncedAt: newCfg.lastSyncedAt
+        })
+      );
+    } catch {}
   };
 
   const [userRepos, setUserRepos] = useState<any[]>([]);

@@ -7,6 +7,50 @@
     <meta name="description" content="An AI-powered developer agent workspace that connects with OpenRouter to generate, preview, and download custom codebases across any language." />
     <meta property="og:title" content="Remix Remix Remix: OpenRouter Code Agent" />
     <meta property="og:description" content="An AI-powered developer agent workspace that connects with OpenRouter to generate, preview, and download custom codebases across any language." />
+    <script>
+      // Global safety guard against browser-level IndexedDB backing store errors in sandboxed iframes
+      (function() {
+        if (typeof window !== 'undefined') {
+          window.addEventListener('unhandledrejection', function(event) {
+            var reason = event && event.reason;
+            var msg = (reason && (reason.message || reason.name || String(reason))) || '';
+            if (msg.includes('backing store') || msg.includes('indexedDB') || msg.includes('IndexedDB')) {
+              event.preventDefault && event.preventDefault();
+            }
+          });
+          if (window.indexedDB) {
+            try {
+              var origOpen = window.indexedDB.open.bind(window.indexedDB);
+              window.indexedDB.open = function() {
+                try {
+                  var req = origOpen.apply(window.indexedDB, arguments);
+                  if (req && typeof req.addEventListener === 'function') {
+                    req.addEventListener('error', function(e) {
+                      var err = req.error;
+                      if (err && (String(err.message || '').includes('backing store') || err.name === 'InvalidStateError')) {
+                        e.preventDefault && e.preventDefault();
+                        e.stopPropagation && e.stopPropagation();
+                      }
+                    });
+                  }
+                  return req;
+                } catch (openErr) {
+                  console.warn('Caught IndexedDB open error:', openErr);
+                  var dummyReq = {
+                    addEventListener: function() {},
+                    removeEventListener: function() {},
+                    readyState: 'done',
+                    error: openErr,
+                    result: null
+                  };
+                  return dummyReq;
+                }
+              };
+            } catch (e) {}
+          }
+        }
+      })();
+    </script>
   </head>
   <body class="min-h-screen w-full overflow-x-hidden m-0 p-0">
     <div id="root" class="min-h-screen w-full flex flex-col"></div>

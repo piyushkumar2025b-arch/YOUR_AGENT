@@ -173,8 +173,13 @@ export const TrendingGithubRepos: React.FC = () => {
   const [selectedCategoryIndex, setSelectedCategoryIndex] = useState<number>(0);
   const [copiedRepoId, setCopiedRepoId] = useState<number | null>(null);
 
-  // PAT Token State
-  const [patToken, setPatToken] = useState<string>(() => localStorage.getItem("github_pat") || "");
+  // PAT Token State (In-memory only for security, never stored in localStorage)
+  const [patToken, setPatToken] = useState<string>(() => {
+    try {
+      localStorage.removeItem("github_pat");
+    } catch {}
+    return "";
+  });
   const [showPatInput, setShowPatInput] = useState<boolean>(false);
   const [rateLimitInfo, setRateLimitInfo] = useState<{ remaining: number; limit: number } | null>(null);
 
@@ -211,7 +216,6 @@ export const TrendingGithubRepos: React.FC = () => {
 
   const savePatToken = (token: string) => {
     setPatToken(token);
-    localStorage.setItem("github_pat", token);
   };
 
   const safeGithubFetch = async (targetUrl: string) => {

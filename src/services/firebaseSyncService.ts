@@ -21,8 +21,8 @@ export interface FirebaseSyncStatus {
   mode: "cloud" | "offline";
 }
 
-// Save workspace files to Firebase Firestore
-export async function syncFilesToFirebase(files: VirtualFile[], emptyFolders: string[] = []): Promise<boolean> {
+// Save workspace files to Firebase Firestore (BUG-004: record appUserId)
+export async function syncFilesToFirebase(files: VirtualFile[], emptyFolders: string[] = [], appUserId?: string): Promise<boolean> {
   try {
     const user = await ensureAuth().catch(() => null);
     if (!user || !user.uid) return false;
@@ -30,6 +30,7 @@ export async function syncFilesToFirebase(files: VirtualFile[], emptyFolders: st
     const docRef = doc(db, "workspaces", user.uid);
     await setDoc(docRef, {
       userId: user.uid,
+      appUserId: appUserId || user.uid,
       files: files.map(f => ({
         path: f.path,
         content: f.content,
@@ -64,7 +65,7 @@ export async function loadFilesFromFirebase(): Promise<{ files: VirtualFile[]; e
         const snap = await getDoc(docRef);
         if (snap.exists()) {
           const data = snap.data();
-          if (Array.isArray(data.files) && data.files.length > 0) {
+          if (Array.isArray(data.files)) {
             return {
               files: data.files,
               emptyFolders: Array.isArray(data.emptyFolders) ? data.emptyFolders : []
@@ -84,8 +85,8 @@ export async function loadFilesFromFirebase(): Promise<{ files: VirtualFile[]; e
   }
 }
 
-// Sync chat messages to Firebase Firestore
-export async function syncMessagesToFirebase(messages: Message[]): Promise<boolean> {
+// Sync chat messages to Firebase Firestore (BUG-004: record appUserId)
+export async function syncMessagesToFirebase(messages: Message[], appUserId?: string): Promise<boolean> {
   try {
     const user = await ensureAuth().catch(() => null);
     if (!user || !user.uid) return false;
@@ -95,6 +96,7 @@ export async function syncMessagesToFirebase(messages: Message[]): Promise<boole
     const trimmed = messages.slice(-50);
     await setDoc(docRef, {
       userId: user.uid,
+      appUserId: appUserId || user.uid,
       messages: trimmed,
       updatedAt: serverTimestamp(),
       count: trimmed.length
@@ -138,21 +140,25 @@ export async function loadMessagesFromFirebase(): Promise<Message[] | null> {
   }
 }
 
-// Save audit log entry to Firebase Firestore
-export async function logActionToFirebase(action: { type: string; message: string; path?: string }): Promise<void> {
+// Save audit log entry to Firebase Firestore (BUG-003: align with firestore.rules string schema)
+export async function logActionToFirebase(action: { type: string; message: string; path?: string }): Promise<boolean> {
   try {
     const user = await ensureAuth().catch(() => null);
-    if (!user || !user.uid) return;
+    if (!user || !user.uid) return false;
 
     const logsCol = collection(db, "agent_audit_logs");
     const newDoc = doc(logsCol);
     await setDoc(newDoc, {
-      ...action,
       userId: user.uid,
-      timestamp: serverTimestamp()
+      action: String(action.type || "action").slice(0, 100),
+      message: String(action.message || "").slice(0, 5000),
+      path: typeof action.path === "string" ? action.path.slice(0, 1000) : "",
+      timestamp: new Date().toISOString()
     });
-  } catch (err) {
-    // Non-blocking
+    return true;
+  } catch (err: any) {
+    console.debug("Firestore logActionToFirebase notice:", err?.message || err);
+    return false;
   }
 }
 

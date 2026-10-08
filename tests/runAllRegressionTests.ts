@@ -45,8 +45,17 @@ function fetchApi(
       },
       (res) => {
         let rawData = "";
-        res.on("data", (chunk) => (rawData += chunk));
+        let exceeded = false;
+        const MAX_TEST_RESPONSE_BYTES = 2 * 1024 * 1024;
+        res.on("data", (chunk) => {
+          rawData += chunk;
+          if (Buffer.byteLength(rawData, "utf8") > MAX_TEST_RESPONSE_BYTES) {
+            exceeded = true;
+            req.destroy(new Error(`Test response exceeded ${MAX_TEST_RESPONSE_BYTES} bytes limit.`));
+          }
+        });
         res.on("end", () => {
+          if (exceeded) return;
           let data = rawData;
           try {
             data = JSON.parse(rawData);
@@ -57,6 +66,10 @@ function fetchApi(
         });
       }
     );
+
+    req.setTimeout(15000, () => {
+      req.destroy(new Error(`Test request to ${path} timed out after 15s.`));
+    });
 
     req.on("error", (err) => reject(err));
     if (payload) {
@@ -99,9 +112,8 @@ async function runTests() {
   }
 
   try {
-    const secAudit = await fetchApi("/api/system/security-audit");
-    assert(secAudit.status === 200, "GET /api/system/security-audit returns 200");
-    assert(Boolean(secAudit.data.auditTimestamp), "Security audit returns timestamp");
+    const unauthAudit = await fetchApi("/api/system/security-audit");
+    assert(unauthAudit.status === 401, "GET /api/system/security-audit rejects unauthenticated with 401");
   } catch (err: any) {
     assert(false, "GET /api/system/security-audit", err.message);
   }
@@ -123,6 +135,15 @@ async function runTests() {
   }
 
   const authHeaders = { Authorization: `Bearer ${guestAuthToken}` };
+
+  // Verify authenticated security audit
+  try {
+    const secAudit = await fetchApi("/api/system/security-audit", { headers: authHeaders });
+    assert(secAudit.status === 200, "Security audit returns 200 with session");
+    assert(Boolean(secAudit.data.auditTimestamp), "Security audit returns timestamp");
+  } catch (err: any) {
+    assert(false, "Security audit with session", err.message);
+  }
 
   // 2.1 Unauthenticated execution rejection (BUG-001/BUG-002)
   try {
@@ -327,11 +348,15 @@ async function runTests() {
     });
     assert(resLogin.status === 200, "Auth login succeeds with correct credentials", `status: ${resLogin.status}`);
     assert(Boolean(resLogin.data.token), "Auth login returns token");
+    const setCookie = resLogin.headers["set-cookie"];
+    const cookieStr = Array.isArray(setCookie) ? setCookie.join("; ") : String(setCookie || "");
+    assert(cookieStr.includes("remix_session="), "Auth login sets HttpOnly session cookie");
+    assert(cookieStr.toLowerCase().includes("httponly"), "Auth cookie includes HttpOnly attribute");
   } catch (err: any) {
     assert(false, "Auth login correct pass", err.message);
   }
 
-  // 3.8 /api/auth/me with valid and invalid tokens
+  // 3.8 /api/auth/me with valid and invalid tokens (Bearer and Cookie)
   try {
     const resMeValid = await fetchApi("/api/auth/me", {
       headers: { Authorization: `Bearer ${testToken}` },
@@ -339,12 +364,37 @@ async function runTests() {
     assert(resMeValid.status === 200, "Auth me accepts valid bearer token", `status: ${resMeValid.status}`);
     assert(resMeValid.data.user?.email === testEmail, "Auth me returns correct user profile");
 
+    // Cookie-based authentication check
+    const resMeCookie = await fetchApi("/api/auth/me", {
+      headers: { Cookie: `remix_session=${testToken}` },
+    });
+    assert(resMeCookie.status === 200, "Auth me accepts valid session cookie", `status: ${resMeCookie.status}`);
+    assert(resMeCookie.data.user?.email === testEmail, "Auth me with cookie returns correct user profile");
+
     const resMeForged = await fetchApi("/api/auth/me", {
       headers: { Authorization: `Bearer ${testToken.slice(0, -5)}fake` },
     });
     assert(resMeForged.status === 401, "Auth me rejects forged/tampered token with 401", `status: ${resMeForged.status}`);
   } catch (err: any) {
     assert(false, "Auth me token validation", err.message);
+  }
+
+  // 3.9 /api/auth/logout revokes session and clears cookie
+  try {
+    const resLogout = await fetchApi("/api/auth/logout", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${testToken}`, Cookie: `remix_session=${testToken}` },
+    });
+    assert(resLogout.status === 200, "Auth logout returns 200", `status: ${resLogout.status}`);
+    assert(resLogout.data.success === true, "Auth logout returns success: true");
+
+    // Verify token is now revoked
+    const resMeAfterLogout = await fetchApi("/api/auth/me", {
+      headers: { Authorization: `Bearer ${testToken}` },
+    });
+    assert(resMeAfterLogout.status === 401, "Auth me rejects revoked token after logout with 401", `status: ${resMeAfterLogout.status}`);
+  } catch (err: any) {
+    assert(false, "Auth logout verification", err.message);
   }
 
   // -------------------------------------------------------------
@@ -378,9 +428,17 @@ async function runTests() {
     assert(Boolean(resUpload.data.fileId), "Share upload returns fileId");
     uploadedFileId = resUpload.data.fileId;
 
-    const resDownload = await fetchApi(`/api/share/download/${uploadedFileId}`);
-    assert(resDownload.status === 200, "Share download retrieves uploaded file", `status: ${resDownload.status}`);
+    const downloadPath = resUpload.data.downloadUrl
+      ? new URL(resUpload.data.downloadUrl, "http://127.0.0.1:3000").pathname + new URL(resUpload.data.downloadUrl, "http://127.0.0.1:3000").search
+      : `/api/share/download/${uploadedFileId}`;
+
+    const resDownload = await fetchApi(downloadPath);
+    assert(resDownload.status === 200, "Share download retrieves uploaded file with signed URL", `status: ${resDownload.status}`);
     assert(String(resDownload.data) === testContent, "Share download matches exact uploaded content");
+
+    // 4.2b Unsigned, unauthenticated direct download must be rejected (BUG-010)
+    const resUnsigned = await fetchApi(`/api/share/download/${uploadedFileId}`);
+    assert(resUnsigned.status === 403, "Share download rejects unsigned unauthenticated download with 403", `status: ${resUnsigned.status}`);
   } catch (err: any) {
     assert(false, "Share upload/download roundtrip", err.message);
   }

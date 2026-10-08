@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { 
   Bot, Key, Sparkles, ShieldCheck, Github, Globe, 
   Cpu, ExternalLink, Check, Eye, EyeOff,
@@ -22,6 +22,7 @@ import { TopScrollProgressBar } from "./TopScrollProgressBar";
 import { HumanizedTokenEfficiencyMeter } from "./HumanizedTokenEfficiencyMeter";
 import { HumanizedMakerNote } from "./HumanizedMakerNote";
 import { isValidOpenRouterKey } from "../utils/keyObfuscation";
+import { setAuthToken } from "../utils/apiAuth";
 
 // Import locally generated images
 import heroDashboardImg from "../assets/images/hero_agent_dashboard_1784901158122.jpg";
@@ -34,7 +35,7 @@ interface LandingPageProps {
   selectedModel: string;
   onSelectModel: (model: string) => void;
   availableModels: { id: string; name: string }[];
-  onEnterWorkspace: (workspaceName: string, authType: "google" | "github" | "guest") => void;
+  onEnterWorkspace: (workspaceName: string, authType: "google" | "github" | "guest" | "email") => void;
   onGoogleSignIn: () => Promise<any>;
   theme: "light" | "dark";
   onToggleTheme?: () => void;
@@ -114,9 +115,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         setAuthError(data.error || "Authentication failed.");
       } else {
         if (data.token) {
-          localStorage.setItem("app_auth_token", data.token);
+          setAuthToken(data.token);
         }
-        onEnterWorkspace(workspaceName.trim() || "Enterprise Dev Studio", "google");
+        onEnterWorkspace(workspaceName.trim() || "Enterprise Dev Studio", "email");
       }
     } catch (err: any) {
       setAuthError(err.message || "Connection error during authentication.");
@@ -124,6 +125,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       setIsAuthLoading(false);
     }
   };
+
+  // OAuth popup reference for secure origin & source verification
+  const githubPopupRef = useRef<Window | null>(null);
 
   // Prevent default right click menu
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -137,8 +141,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       if (event.origin !== window.location.origin) {
         return;
       }
+      // Strictly verify source window matches the launched popup window
+      if (githubPopupRef.current && event.source !== githubPopupRef.current) {
+        return;
+      }
       if (event.data?.type === "OAUTH_AUTH_SUCCESS") {
         setIsAuthLoading(false);
+        if (event.data.token) {
+          setAuthToken(event.data.token);
+        }
+        if (githubPopupRef.current && !githubPopupRef.current.closed) {
+          try { githubPopupRef.current.close(); } catch {}
+        }
+        githubPopupRef.current = null;
         onEnterWorkspace(workspaceName.trim() || "Enterprise Dev Studio", event.data.provider || "github");
       }
     };
@@ -189,6 +204,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         "github_oauth_popup",
         "width=600,height=700,scrollbars=yes,status=yes"
       );
+
+      githubPopupRef.current = popup;
 
       if (!popup) {
         setAuthError("Popup blocked by browser. Please allow popups to sign in with GitHub.");

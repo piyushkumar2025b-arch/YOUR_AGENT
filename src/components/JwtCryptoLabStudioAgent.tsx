@@ -136,7 +136,7 @@ const DEFAULT_PAYLOAD = JSON.stringify(
   null,
   2
 );
-const DEFAULT_SECRET = "super_secret_jwt_key_2026";
+const DEFAULT_SECRET = "demo-playground-jwt-secret-key";
 
 export const JwtCryptoLabStudioAgent: React.FC<JwtCryptoLabStudioAgentProps> = ({
   theme,

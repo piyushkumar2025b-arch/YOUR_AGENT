@@ -387,7 +387,15 @@ export const UniversalPreview: React.FC<UniversalPreviewProps> = ({
       errBox.style.color = '#991b1b';
       errBox.style.fontFamily = 'monospace';
       errBox.style.fontSize = '12px';
-      errBox.innerHTML = '<strong>Runtime Render Exception:</strong><br/>' + errMsg;
+      errBox.textContent = '';
+      const strongEl = document.createElement('strong');
+      strongEl.textContent = 'Runtime Render Exception:';
+      const preEl = document.createElement('pre');
+      preEl.style.whiteSpace = 'pre-wrap';
+      preEl.style.marginTop = '6px';
+      preEl.textContent = errMsg;
+      errBox.appendChild(strongEl);
+      errBox.appendChild(preEl);
       rootEl.prepend(errBox);
     }
   </script>
@@ -635,12 +643,31 @@ export const UniversalPreview: React.FC<UniversalPreviewProps> = ({
                 <span className="hidden sm:inline">API</span>
               </button>
 
-              {/* Open in New Window/Tab */}
+              {/* Open in New Window/Tab (BUG-006: Wrap in sandboxed iframe to preserve security boundary) */}
               <button
                 onClick={() => {
-                  const previewBlob = new Blob([generateLocalhostBundle()], { type: 'text/html' });
+                  const bundleCode = generateLocalhostBundle();
+                  const sandboxedWrapper = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sandboxed App Preview</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #090d16; }
+    iframe { width: 100%; height: 100%; border: none; }
+  </style>
+</head>
+<body>
+  <iframe sandbox="allow-scripts allow-modals allow-forms" srcdoc="${bundleCode.replace(/"/g, '&quot;')}"></iframe>
+</body>
+</html>`;
+                  const previewBlob = new Blob([sandboxedWrapper], { type: 'text/html' });
                   const previewUrl = URL.createObjectURL(previewBlob);
-                  window.open(previewUrl, "_blank");
+                  const win = window.open(previewUrl, "_blank", "noopener,noreferrer");
+                  if (win) {
+                    setTimeout(() => URL.revokeObjectURL(previewUrl), 60000);
+                  }
                 }}
                 className={`p-1.5 rounded-md transition-all cursor-pointer ${
                   theme === "dark" ? "text-zinc-400 hover:text-white hover:bg-zinc-800" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
@@ -698,7 +725,7 @@ export const UniversalPreview: React.FC<UniversalPreviewProps> = ({
                       ? "w-[768px] my-auto rounded-xl border-2 border-slate-700 shadow-xl h-[96%]" 
                       : "w-full"
                 }`}
-                sandbox="allow-scripts allow-modals allow-same-origin allow-forms"
+                sandbox="allow-scripts allow-modals allow-forms"
               />
             </div>
 

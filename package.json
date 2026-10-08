@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
-    "start": "node dist/server.cjs",
+    "start": "node dist/server.cjs || tsx server.ts",
+    "test": "tsx tests/runAllRegressionTests.ts",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"
   },
@@ -44,6 +45,7 @@
     "mathjs": "^15.2.0",
     "motion": "^12.23.24",
     "nanoid": "^6.0.0",
+    "node-cron": "^4.6.0",
     "pdfjs-dist": "^6.1.200",
     "qrcode": "^1.5.4",
     "react": "^19.0.1",
@@ -65,6 +67,7 @@
     "@types/canvas-confetti": "^1.9.0",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
+    "@types/node-cron": "^3.0.11",
     "@types/react-syntax-highlighter": "^15.5.13",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",

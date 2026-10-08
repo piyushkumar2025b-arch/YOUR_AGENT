@@ -1,4 +1,4 @@
-import { fetchWithAuth } from "../utils/apiAuth";
+import { fetchWithAuth, getAuthToken, ensureSessionToken } from "../utils/apiAuth";
 
 export interface CodeExecutionRequest {
   filePath: string;
@@ -93,7 +93,10 @@ export async function executeCodeFile(req: CodeExecutionRequest): Promise<CodeEx
 
   // Step 1: Try backend execution endpoint (/api/exec-code)
   try {
-    const localToken = typeof window !== "undefined" ? (localStorage.getItem("app_auth_token") || "") : "";
+    let localToken = getAuthToken();
+    if (!localToken && !req.apiKey) {
+      localToken = await ensureSessionToken().catch(() => "");
+    }
     const authHeader = req.apiKey ? `Bearer ${req.apiKey}` : (localToken ? `Bearer ${localToken}` : "");
 
     const res = await fetch("/api/exec-code", {
@@ -115,8 +118,28 @@ export async function executeCodeFile(req: CodeExecutionRequest): Promise<CodeEx
       const data: CodeExecutionResponse = await res.json();
       return data;
     }
-  } catch (err) {
-    console.warn("Backend exec-code route failed or unavailable, using OpenRouter fallback:", err);
+    const errData = await res.json().catch(() => null);
+    return {
+      stdout: "",
+      stderr: errData?.error || `Execution failed with HTTP status ${res.status}.`,
+      exitCode: 1,
+      executionTimeMs: Math.round(performance.now() - startTime),
+      memoryUsageMb: "0 MB",
+      runnerType: "local_node",
+      isSimulated: false,
+      explanation: errData?.error || "Execution failed."
+    };
+  } catch (err: any) {
+    return {
+      stdout: "",
+      stderr: `Execution error: ${err?.message || "Failed to reach execution service."}`,
+      exitCode: 1,
+      executionTimeMs: Math.round(performance.now() - startTime),
+      memoryUsageMb: "0 MB",
+      runnerType: "local_node",
+      isSimulated: false,
+      explanation: err?.message || "Execution service error."
+    };
   }
 
   // Step 2: Client-side direct OpenRouter AI Execution fallback
@@ -281,7 +304,7 @@ ${req.code}
               executionTimeMs: Math.round(performance.now() - startTime),
               memoryUsageMb: "8.2 MB",
               runnerType: "browser_eval",
-              explanation: "Executed natively in browser Web Worker sandbox."
+              explanation: "Executed locally in browser Web Worker (client preview environment - non-isolated OS sandbox)."
             });
           } else {
             resolve({

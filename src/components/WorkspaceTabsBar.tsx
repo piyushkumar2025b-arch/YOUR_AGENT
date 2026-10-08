@@ -4,72 +4,75 @@ import {
   Code2,
   Globe,
   Cpu,
-  GraduationCap,
-  Palette,
-  Compass,
-  BookOpen,
-  Book,
-  Gamepad2,
-  Music,
-  Search,
+  Sparkles,
+  Terminal,
   Github,
   Flame,
   Database,
-  Mail,
-  Youtube,
-  Brain,
-  Terminal,
-  Upload,
-  Sun,
-  Newspaper,
-  Calculator,
-  Download,
-  FileText,
-  Laugh,
-  Bot,
   ShieldAlert,
-  Wand2,
-  Volume2,
-  Languages,
-  Share2,
-  DollarSign,
-  QrCode,
+  Stethoscope,
+  GitCompare,
+  Binary,
+  Send,
+  Server,
+  Calculator,
+  Settings,
+  Search,
+  Mail,
+  Calendar,
+  Youtube,
+  Wind,
+  Compass,
+  MapPin,
+  Globe2,
   Rocket,
-  Coins,
-  Users,
-  Dog,
+  Brain,
+  Bot,
+  GraduationCap,
+  BookOpen,
+  Book,
+  BookMarked,
+  Languages,
+  Wand2,
   HelpCircle,
   Quote,
+  Dog,
+  Building2,
+  Newspaper,
+  Palette,
+  Camera,
   ImageIcon,
-  Wind,
-  Settings,
-  Sparkles,
-  ChevronDown,
-  LayoutGrid,
+  Download,
+  FileText,
+  Volume2,
+  Music,
+  Laugh,
+  Gamepad2,
+  Trophy,
+  Share2,
+  TrendingUp,
+  DollarSign,
+  Coins,
+  QrCode,
+  FileCode2,
+  Sun,
   X,
   ChevronLeft,
   ChevronRight,
-  Sliders,
-  Calendar,
+  LayoutGrid,
   Check,
+  Key,
   Box,
   Orbit,
-  Server,
   Gauge,
-  Send,
-  Stethoscope,
-  Binary,
-  GitCompare,
-  FileCode2,
-  Radio,
   Clock,
-  GitFork,
-  Key,
   GitBranch,
-  FileJson
+  FileJson,
+  Radio,
+  GitFork
 } from "lucide-react";
 
-export type ToolCategory = "core" | "music" | "ai" | "web" | "dev" | "data" | "media" | "new";
+export type ToolCategory = "core" | "music" | "ai" | "web" | "dev" | "media" | "new";
 
 export interface TabItem {
   id: string;
@@ -81,114 +84,115 @@ export interface TabItem {
   badgeColor?: string;
 }
 
-export const WORKSPACE_TABS: TabItem[] = [
-  // Core Development
+// ============================================================================
+// ALL ORIGINAL, MOST USED REAL FEATURES (KEPT FRONT & CENTER IN THE MAIN TOOLBAR)
+// Not the new ones - all the old, real, most used features are here in the main bar!
+// ============================================================================
+export const REAL_WORKSPACE_TABS: TabItem[] = [
+  // Core Dev & Workspace
   { id: "editor", label: "Code Editor", icon: Code2, category: "core", description: "Multi-file IDE with syntax highlighting, live tabs & AI Runner" },
   { id: "preview", label: "Universal Preview", icon: Globe, category: "core", description: "Realtime responsive web browser & device viewport emulator" },
   { id: "agents", label: "Agents Ecosystem", icon: Cpu, category: "core", description: "Autonomous multi-agent orchestration & execution pipelines" },
+  { id: "skills", label: "Agent Skills & Tools", icon: Sparkles, category: "core", description: "Configured system skills, capabilities & tool inspectors" },
   { id: "actions", label: "Audit & Logs", icon: Terminal, category: "core", description: "Realtime diagnostic system logstream & execution telemetry" },
   { id: "github", label: "GitHub Sync", icon: Github, category: "core", description: "Branch commits, repo cloning, push/pull & OAuth integration" },
   { id: "firebase", label: "Firebase DB", icon: Flame, category: "core", description: "Cloud Firestore database synchronization & auth management" },
   { id: "supabase", label: "Supabase DB", icon: Database, category: "core", description: "PostgreSQL realtime tables, storage buckets & SQL console" },
-  { id: "settings", label: "Studio Settings", icon: Settings, category: "core", description: "Studio layout, API keys, dark/light themes & preferences" },
+  { id: "code-analyzer", label: "Code Auditor", icon: ShieldAlert, category: "dev", description: "Static AST security auditing, vulnerability & CVE scanner" },
+  { id: "code-doctor", label: "Code Health Doctor", icon: Stethoscope, category: "dev", description: "Live codebase diagnostic health, syntax & performance audit" },
+  { id: "diff-inspector", label: "Diff Inspector", icon: GitCompare, category: "dev", description: "Side-by-side git diff & code modification comparison" },
+  { id: "regex-playground", label: "Regex Playground", icon: Binary, category: "dev", description: "Realtime regular expressions sandbox & match evaluator" },
+  { id: "api-client", label: "REST Client Studio", icon: Send, category: "dev", description: "Interactive Postman-style HTTP client with SSRF protection & header presets" },
+  { id: "sql-studio", label: "Relational SQL", icon: Server, category: "dev", description: "SQL query runner, schema inspector & table data explorer" },
+  { id: "calculator", label: "Scientific Calc", icon: Calculator, category: "dev", description: "Scientific & programmer calculator with expression history" },
 
-  // Music & Audio Studio
-  { id: "music-studio", label: "Piano & Drum Studio", icon: Music, category: "music", description: "Comprehensive audio workstation with polyphonic piano & step sequencer", badge: "New", badgeColor: "bg-amber-500/20 text-amber-300" },
-  { id: "piano", label: "Virtual Piano", icon: Music, category: "music", description: "8-voice polyphonic synthesizer piano with octave shifting & sustain", badge: "Pro", badgeColor: "bg-indigo-500/20 text-indigo-300" },
-  { id: "drums", label: "16-Step Drum Machine", icon: Sparkles, category: "music", description: "Programmable 4-voice rhythm beatmaker with BPM swing & live loop", badge: "Pro", badgeColor: "bg-emerald-500/20 text-emerald-300" },
-  { id: "music", label: "Ambient Beats Player", icon: Music, category: "music", description: "Lo-fi background radio & ambient study audio visualizer" },
-  { id: "voice-synth", label: "AI Voice Synth", icon: Volume2, category: "music", description: "Text-to-speech voice generator & audio frequency visualizer" },
-
-  // AI & Reasoning Agents
-  { id: "study", label: "Study Agent", icon: GraduationCap, category: "ai", description: "Interactive study planner, flashcards generator & syllabus tutor" },
-  { id: "english-agent", label: "English Coach", icon: GraduationCap, category: "ai", description: "Grammar corrector, vocabulary coach & tone analyzer" },
-  { id: "story", label: "Story Maker", icon: BookOpen, category: "ai", description: "Branching creative fiction & dynamic narrative story generator" },
-  { id: "chat", label: "Just Chat AI", icon: Brain, category: "ai", description: "Distraction-free conversational reasoning & brainstorming workspace" },
-  { id: "jokes", label: "Jokes & Humor", icon: Laugh, category: "ai", description: "Programmer jokes, puns & stand-up humor generator" },
-  { id: "content-creator", label: "Content Creator", icon: Share2, category: "ai", description: "Social media copy, blog posts & SEO marketing generator" },
-  { id: "deep-research", label: "Deep Research", icon: Compass, category: "ai", description: "Multi-source research agent with citations & factual analysis" },
-  { id: "live-quiz", label: "Interactive Quiz", icon: Brain, category: "ai", description: "Realtime knowledge trivia & coding challenge engine" },
-  { id: "cp", label: "Competitive Coding", icon: Code2, category: "ai", description: "Algorithms, time complexity analyzer & LeetCode assistant" },
-
-  // Web & Cloud Integrations
+  // Web & Cloud
   { id: "search", label: "Google Search", icon: Search, category: "web", description: "Live web search engine integration with verified instant results" },
   { id: "gmail", label: "Gmail Productivity", icon: Mail, category: "web", description: "Email drafting, smart inbox search & Gmail thread assistant" },
-  { id: "youtube", label: "YouTube Studio", icon: Youtube, category: "web", description: "Video search, chapters, transcript extraction & thumbnail viewer" },
   { id: "calendar-agent", label: "Google Calendar", icon: Calendar, category: "web", description: "Schedule meetings, plan deadlines & sync Google Calendar events" },
+  { id: "youtube", label: "YouTube Studio", icon: Youtube, category: "web", description: "Video search, chapters, transcript extraction & thumbnail viewer" },
+  { id: "weather", label: "Live Weather", icon: Wind, category: "web", description: "Realtime meteorological forecast, temperature & atmospheric radar" },
   { id: "map", label: "Interactive Maps", icon: Compass, category: "web", description: "Global vector map visualizer with place search & coordinates" },
-  { id: "share", label: "Share & QR Export", icon: Upload, category: "web", description: "Deploy live URL, generate instant QR code & export bundle" },
-  { id: "trending-repos", label: "Trending Repos", icon: Github, category: "web", description: "Explore trending open-source repositories on GitHub today" },
+  { id: "ipgeo-agent", label: "IP Geolocation", icon: MapPin, category: "web", description: "IP network geolocation, ISP lookup & coordinates mapping" },
+  { id: "earth-space-agent", label: "Earth & Orbit Live", icon: Globe2, category: "web", description: "Satellite orbits, ISS tracker & atmospheric live telemetry" },
+  { id: "nasa-agent", label: "NASA Space API", icon: Rocket, category: "web", description: "Astronomy picture of the day, Mars rover & deep space exploration" },
 
-  // Dev Utilities & Tools
-  { id: "load-benchmark", label: "Load & Stress Benchmark", icon: Flame, category: "dev", description: "Real-time API load & stress testing, concurrency runner, latency percentiles & k6/autocannon exporter", badge: "New", badgeColor: "bg-amber-500/20 text-amber-300" },
-  { id: "seo-studio", label: "SEO & Social Previews", icon: Share2, category: "dev", description: "Interactive Google SERP, Twitter Cards & OpenGraph live feed simulator, Schema.org generator & sitemaps", badge: "New", badgeColor: "bg-cyan-500/20 text-cyan-300" },
-  { id: "git-graph-studio", label: "Git Graph & Commits", icon: GitBranch, category: "dev", description: "Visual branch commit graph tree, conventional commit builder, branch merging & changelog exporter", badge: "New", badgeColor: "bg-blue-500/20 text-blue-300" },
-  { id: "json-schema-studio", label: "JSON Schema & Validator", icon: FileJson, category: "dev", description: "Live JSON Schema Draft 2020-12 validator, automatic schema inference, synthetic mock generator & Zod exporter", badge: "New", badgeColor: "bg-emerald-500/20 text-emerald-300" },
-  { id: "network-har-studio", label: "Network HAR & Waterfall", icon: Globe, category: "dev", description: "HTTP Archive (HAR) inspector, network waterfalls, cURL-to-Fetch converter & latency injector", badge: "New", badgeColor: "bg-cyan-500/20 text-cyan-300" },
-  { id: "tailwind-tokens-studio", label: "Tailwind Design Tokens", icon: Palette, category: "dev", description: "Visual design system architect, 50-950 shade generator, WCAG contrast auditor & UI sandbox", badge: "New", badgeColor: "bg-pink-500/20 text-pink-300" },
-  { id: "cicd-architect", label: "CI/CD & GitHub Actions", icon: GitFork, category: "dev", description: "Automated pipeline architect, Docker build & Cloud Run deploy with dry-run simulator", badge: "New", badgeColor: "bg-emerald-500/20 text-emerald-300" },
-  { id: "jwt-lab", label: "JWT & Crypto Lab", icon: Key, category: "dev", description: "Interactive JSON Web Token debugger, SHA/HMAC hash suite & AES-GCM 256-bit cipher", badge: "Pro", badgeColor: "bg-purple-500/20 text-purple-300" },
-  { id: "erd-studio", label: "Database ERD Architect", icon: Database, category: "dev", description: "Interactive Entity Relationship Diagram (ERD) visual modeler, schema scanner & Drizzle ORM generator", badge: "New", badgeColor: "bg-blue-500/20 text-blue-300" },
-  { id: "cron-studio", label: "Cron & Task Scheduler", icon: Clock, category: "dev", description: "Visual cron expression builder, English translation engine, schedule forecaster & runner sandbox", badge: "New", badgeColor: "bg-amber-500/20 text-amber-300" },
-  { id: "openapi-studio", label: "OpenAPI & Swagger", icon: FileCode2, category: "dev", description: "Interactive OpenAPI 3.1 & Swagger visual architect, automated endpoint scanner & live API test bench", badge: "New", badgeColor: "bg-emerald-500/20 text-emerald-300" },
-  { id: "stream-tester", label: "WebSocket & SSE Stream", icon: Radio, category: "dev", description: "Realtime WebSocket (WSS) & Server-Sent Events (SSE) live connection tester & mock feed emulator", badge: "Pro", badgeColor: "bg-purple-500/20 text-purple-300" },
-  { id: "mock-server", label: "Mock API Server", icon: Server, category: "dev", description: "Configurable mock REST server with custom latency, status codes & webhook catcher", badge: "Pro", badgeColor: "bg-emerald-500/20 text-emerald-300" },
-  { id: "perf-auditor", label: "Perf & Bundle Audit", icon: Gauge, category: "dev", description: "Lighthouse-style code quality, bundle size, security & accessibility auditor", badge: "New", badgeColor: "bg-cyan-500/20 text-cyan-300" },
-  { id: "docker-studio", label: "Docker & Compose", icon: Box, category: "dev", description: "Multi-stage Dockerfile, docker-compose & devcontainer configuration architect", badge: "New", badgeColor: "bg-sky-500/20 text-sky-300" },
-  { id: "graphql-studio", label: "GraphQL Explorer", icon: Orbit, category: "dev", description: "Interactive GraphQL playground, schema introspection visualizer & query tester", badge: "New", badgeColor: "bg-pink-500/20 text-pink-300" },
-  { id: "api-client", label: "REST Client Studio", icon: Send, category: "dev", description: "Interactive Postman-style HTTP client with SSRF protection & header presets" },
-  { id: "code-doctor", label: "Code Doctor AI", icon: Stethoscope, category: "dev", description: "Automated codebase scanner, syntax error diagnostician & 1-click refactoring" },
-  { id: "diff-inspector", label: "Git Diff Inspector", icon: GitCompare, category: "dev", description: "Side-by-side split visual diff inspector with chunk navigation & patch applier" },
-  { id: "regex-playground", label: "Regex Playground", icon: Binary, category: "dev", description: "Interactive regex evaluator with capture groups, cheat sheet & AI explainer" },
-  { id: "calculator", label: "Scientific Calc", icon: Calculator, category: "dev", description: "Scientific & programmer calculator with expression history" },
-  { id: "code-analyzer", label: "Code Security", icon: ShieldAlert, category: "dev", description: "Static AST security auditing, vulnerability & CVE scanner" },
-  { id: "api-hub", label: "API Studio Hub", icon: Bot, category: "dev", description: "Explore and test 50+ free public REST APIs directly" },
-  { id: "media-downloader", label: "Media Downloader", icon: Download, category: "dev", description: "Direct video, audio & asset media download helper" },
-  { id: "doc-previewer", label: "Doc Previewer", icon: FileText, category: "dev", description: "Rich markdown, PDF and documentation renderer" },
-  { id: "qrcode-agent", label: "QR Code API", icon: QrCode, category: "dev", description: "Custom styled SVG and PNG QR Code generator" },
-  { id: "translator", label: "Translator API", icon: Languages, category: "dev", description: "Instant text translation across 80+ spoken languages" },
-  { id: "dictionary", label: "Lexical Dictionary", icon: Book, category: "dev", description: "Word definitions, etymology, phonetics & synonyms lookup" },
-  { id: "gaming", label: "Arcade Games", icon: Gamepad2, category: "dev", description: "Retro browser games, arcade physics & coding minigames" },
+  // AI & Reasoning
+  { id: "chat", label: "Just Chat AI", icon: Brain, category: "ai", description: "Distraction-free conversational reasoning & brainstorming workspace" },
+  { id: "deep-research", label: "Deep Research", icon: Bot, category: "ai", description: "Multi-source research agent with citations & factual analysis" },
+  { id: "study", label: "Study Agent", icon: GraduationCap, category: "ai", description: "Interactive study planner, flashcards generator & syllabus tutor" },
+  { id: "story", label: "Story Maker", icon: BookOpen, category: "ai", description: "Branching creative fiction & dynamic narrative story generator" },
+  { id: "dictionary", label: "Lexical Dictionary", icon: Book, category: "ai", description: "Word definitions, etymology, phonetics & synonyms lookup" },
+  { id: "english-agent", label: "English Learning", icon: BookMarked, category: "ai", description: "Grammar corrector, vocabulary enrichment & idiom trainer" },
+  { id: "wiki-agent", label: "Wikipedia Explorer", icon: Globe, category: "ai", description: "Deep encyclopedic knowledge extraction & summary explorer" },
+  { id: "translator", label: "AI Translator", icon: Languages, category: "ai", description: "Instant text translation across 80+ spoken languages" },
+  { id: "content-creator", label: "Content Engine", icon: Wand2, category: "ai", description: "AI copywriter, blog outlines, social posts & ad copy generator" },
+  { id: "live-quiz", label: "Live API Quiz", icon: HelpCircle, category: "ai", description: "Interactive computer science & web development quiz challenge" },
+  { id: "opentrivia-agent", label: "Open Trivia Quiz", icon: HelpCircle, category: "ai", description: "Multi-category general knowledge trivia & scoring" },
+  { id: "advice-agent", label: "Advice & Quotes", icon: Quote, category: "ai", description: "Curated wisdom, inspirational quotes & life perspectives" },
+  { id: "animal-agent", label: "Cute Animals API", icon: Dog, category: "ai", description: "Animal facts, species encyclopedia & photography" },
+  { id: "universities-agent", label: "Universities Agent", icon: Building2, category: "ai", description: "Global colleges, academic programs & university search" },
+  { id: "countries-agent", label: "REST Countries", icon: Globe, category: "ai", description: "Comprehensive country demographics, flags, currencies & capitals" },
+  { id: "news-agent", label: "Global News", icon: Newspaper, category: "ai", description: "Realtime international news headlines, breaking topics & feeds" },
 
-  // Data & Knowledge APIs
-  { id: "sql-studio", label: "Relational SQL Studio", icon: Database, category: "data", description: "Interactive SQLite & PostgreSQL relational query sandbox with table visualizer", badge: "Pro", badgeColor: "bg-blue-500/20 text-blue-300" },
-  { id: "weather", label: "Live Weather", icon: Sun, category: "data", description: "Realtime meteorological forecasts, radar & humidity" },
-  { id: "currency-agent", label: "Forex & Crypto", icon: DollarSign, category: "data", description: "Live foreign exchange rates & fiat conversions" },
-  { id: "crypto-agent", label: "Crypto API", icon: Coins, category: "data", description: "Realtime cryptocurrency market prices & 24h volume tracking" },
-  { id: "wiki-agent", label: "Wikipedia API", icon: BookOpen, category: "data", description: "Search encyclopedia articles & summaries via MediaWiki" },
-  { id: "nasa-agent", label: "NASA Space", icon: Rocket, category: "data", description: "Astronomy Picture of the Day & Mars Rover photographs" },
-  { id: "earth-space-agent", label: "Earth & Space", icon: Globe, category: "data", description: "Satellite imagery, planetary orbits & astronomical data" },
-  { id: "ipgeo-agent", label: "IP Geolocation", icon: Globe, category: "data", description: "Inspect client IP, ISP, geolocation coordinates & ASN" },
-  { id: "mockdata-agent", label: "Mock Data API", icon: Users, category: "data", description: "Generate JSON schemas, mock user databases & sample data" },
-  { id: "animal-agent", label: "Pets & Fauna", icon: Dog, category: "data", description: "Random dog & cat images, animal facts & breed info" },
-  { id: "opentrivia-agent", label: "Trivia DB", icon: HelpCircle, category: "data", description: "Curated multi-category quiz questions & trivia challenges" },
-  { id: "countries-agent", label: "World Countries", icon: Globe, category: "data", description: "Demographics, flags, borders & currencies of all nations" },
-  { id: "universities-agent", label: "Universities", icon: GraduationCap, category: "data", description: "Directory of global universities, colleges & domains" },
-  { id: "advice-agent", label: "Wisdom Quotes", icon: Quote, category: "data", description: "Daily inspirational life advice & famous literature quotes" },
-  { id: "books-agent", label: "Books API", icon: BookOpen, category: "data", description: "Google Books database search by ISBN, author & title" },
-  { id: "airquality-agent", label: "Air Quality API", icon: Wind, category: "data", description: "Live PM2.5, ozone & global air pollution indexes" },
-  { id: "news-agent", label: "Global News", icon: Newspaper, category: "data", description: "Top breaking world headlines & RSS technology feeds" },
-
-  // Visuals & Creative Media
+  // Media, Music & Creative
   { id: "photos", label: "Image Studio", icon: Palette, category: "media", description: "Curated stock photo gallery & asset collection" },
-  { id: "photo-editor", label: "Photo Editor", icon: Palette, category: "media", description: "Canvas image filters, crop, rotate & contrast adjustments" },
-  { id: "image-studio", label: "Create Image", icon: Wand2, category: "media", description: "AI generative diffusion model image creator" },
-  { id: "picsum-agent", label: "Stock Photos", icon: ImageIcon, category: "media", description: "High-resolution Lorem Picsum & Unsplash photography" }
+  { id: "photo-editor", label: "Photo Editor", icon: Camera, category: "media", description: "In-browser canvas image adjustments, filters & export" },
+  { id: "picsum-agent", label: "Picsum Gallery", icon: ImageIcon, category: "media", description: "High-resolution placeholder photography & aesthetic gallery" },
+  { id: "media-downloader", label: "Media Downloader", icon: Download, category: "media", description: "Streamlined asset downloader for project images & files" },
+  { id: "doc-previewer", label: "Document Previewer", icon: FileText, category: "media", description: "Rich markdown, PDF & document preview renderer" },
+  { id: "voice-synth", label: "Voice Studio", icon: Volume2, category: "music", description: "Text-to-speech voice generator & audio frequency visualizer" },
+  { id: "music", label: "Ambient Beats Player", icon: Music, category: "music", description: "Lo-fi background radio & ambient study audio visualizer" },
+  { id: "jokes", label: "Live Jokes", icon: Laugh, category: "media", description: "Curated developer & programming jokes collection" },
+  { id: "gaming", label: "Arcade Games", icon: Gamepad2, category: "media", description: "Retro browser games, arcade physics & coding minigames" },
+  { id: "cp", label: "Competitive Coding", icon: Trophy, category: "dev", description: "Algorithm challenges, LeetCode style problems & sandbox testing" },
+  { id: "share", label: "File Share QR Hub", icon: Share2, category: "dev", description: "Instant local file sharing & mobile QR code access hub" },
+  { id: "trending-repos", label: "Trending Repos", icon: TrendingUp, category: "dev", description: "Trending open-source GitHub repositories & tech stacks" },
+  { id: "currency-agent", label: "Currency Exchange", icon: DollarSign, category: "dev", description: "Realtime foreign exchange rates & currency conversion" },
+  { id: "crypto-agent", label: "Crypto Market", icon: Coins, category: "dev", description: "Live cryptocurrency prices, market caps & 24h performance" },
+  { id: "qrcode-agent", label: "QR Code Generator", icon: QrCode, category: "dev", description: "Customizable QR codes with colors, branding & instant download" },
+  { id: "mockdata-agent", label: "Mock Data Generator", icon: FileCode2, category: "dev", description: "Generate realistic JSON, CSV & SQL mock data datasets" },
+  { id: "airquality-agent", label: "Air Quality & Solar", icon: Sun, category: "web", description: "Atmospheric Air Quality Index (AQI), UV index & solar radiation" },
+  { id: "settings", label: "Studio Settings", icon: Settings, category: "core", description: "Studio layout, API keys, dark/light themes & preferences" }
 ];
+
+// ============================================================================
+// NEW EXPERIMENTAL LABS (KEPT IN LABS / MORE TOOLS MODAL, NOT CLOGGING MAIN BAR)
+// ============================================================================
+export const EXTENDED_LABS_TABS: TabItem[] = [
+  { id: "load-benchmark", label: "Load & Stress Benchmark", icon: Flame, category: "new", description: "Real-time API load & stress testing, concurrency runner, latency percentiles & k6/autocannon exporter", badge: "Lab", badgeColor: "bg-amber-500/20 text-amber-300" },
+  { id: "seo-studio", label: "SEO & Social Previews", icon: Share2, category: "new", description: "Interactive Google SERP, Twitter Cards & OpenGraph live feed simulator, Schema.org generator & sitemaps", badge: "Lab", badgeColor: "bg-cyan-500/20 text-cyan-300" },
+  { id: "git-graph-studio", label: "Git Graph & Commits", icon: GitBranch, category: "new", description: "Visual branch commit graph tree, conventional commit builder, branch merging & changelog exporter", badge: "Lab", badgeColor: "bg-blue-500/20 text-blue-300" },
+  { id: "json-schema-studio", label: "JSON Schema & Validator", icon: FileJson, category: "new", description: "Live JSON Schema Draft 2020-12 validator, automatic schema inference, synthetic mock generator & Zod exporter", badge: "Lab", badgeColor: "bg-emerald-500/20 text-emerald-300" },
+  { id: "network-har-studio", label: "Network HAR & Waterfall", icon: Globe, category: "new", description: "HTTP Archive (HAR) inspector, network waterfalls, cURL-to-Fetch converter & latency injector", badge: "Lab", badgeColor: "bg-cyan-500/20 text-cyan-300" },
+  { id: "tailwind-tokens-studio", label: "Tailwind Design Tokens", icon: Palette, category: "new", description: "Visual design system architect, 50-950 shade generator, WCAG contrast auditor & UI sandbox", badge: "Lab", badgeColor: "bg-pink-500/20 text-pink-300" },
+  { id: "cicd-architect", label: "CI/CD & GitHub Actions", icon: GitFork, category: "new", description: "Automated pipeline architect, Docker build & Cloud Run deploy with dry-run simulator", badge: "Lab", badgeColor: "bg-emerald-500/20 text-emerald-300" },
+  { id: "jwt-lab", label: "JWT & Crypto Lab", icon: Key, category: "new", description: "Interactive JSON Web Token debugger, SHA/HMAC hash suite & AES-GCM 256-bit cipher", badge: "Lab", badgeColor: "bg-purple-500/20 text-purple-300" },
+  { id: "erd-studio", label: "Database ERD Architect", icon: Database, category: "new", description: "Interactive Entity Relationship Diagram (ERD) visual modeler, schema scanner & Drizzle ORM generator", badge: "Lab", badgeColor: "bg-blue-500/20 text-blue-300" },
+  { id: "cron-studio", label: "Cron & Task Scheduler", icon: Clock, category: "new", description: "Visual cron expression builder, English translation engine, schedule forecaster & runner sandbox", badge: "Lab", badgeColor: "bg-amber-500/20 text-amber-300" },
+  { id: "openapi-studio", label: "OpenAPI & Swagger", icon: FileCode2, category: "new", description: "Interactive OpenAPI 3.1 & Swagger visual architect, automated endpoint scanner & live API test bench", badge: "Lab", badgeColor: "bg-emerald-500/20 text-emerald-300" },
+  { id: "stream-tester", label: "WebSocket & SSE Stream", icon: Radio, category: "new", description: "Realtime WebSocket (WSS) & Server-Sent Events (SSE) live connection tester & mock feed emulator", badge: "Lab", badgeColor: "bg-purple-500/20 text-purple-300" },
+  { id: "mock-server", label: "Mock API Server", icon: Server, category: "new", description: "Configurable mock REST server with custom latency, status codes & webhook catcher", badge: "Lab", badgeColor: "bg-emerald-500/20 text-emerald-300" },
+  { id: "perf-auditor", label: "Perf & Bundle Audit", icon: Gauge, category: "new", description: "Lighthouse-style code quality, bundle size, security & accessibility auditor", badge: "Lab", badgeColor: "bg-cyan-500/20 text-cyan-300" },
+  { id: "docker-studio", label: "Docker & Compose", icon: Box, category: "new", description: "Multi-stage Dockerfile, docker-compose & devcontainer configuration architect", badge: "Lab", badgeColor: "bg-sky-500/20 text-sky-300" },
+  { id: "graphql-studio", label: "GraphQL Explorer", icon: Orbit, category: "new", description: "Interactive GraphQL playground, schema introspection visualizer & query tester", badge: "Lab", badgeColor: "bg-pink-500/20 text-pink-300" },
+  { id: "music-studio", label: "Piano & Drum Studio", icon: Music, category: "new", description: "Audio workstation with polyphonic piano & step sequencer", badge: "Lab", badgeColor: "bg-amber-500/20 text-amber-300" },
+  { id: "piano", label: "Virtual Piano", icon: Music, category: "new", description: "8-voice polyphonic synthesizer piano with octave shifting & sustain", badge: "Lab", badgeColor: "bg-indigo-500/20 text-indigo-300" },
+  { id: "drums", label: "16-Step Drum Machine", icon: Sparkles, category: "new", description: "Programmable 4-voice rhythm beatmaker with BPM swing & live loop", badge: "Lab", badgeColor: "bg-emerald-500/20 text-emerald-300" }
+];
+
+export const WORKSPACE_TABS: TabItem[] = [...REAL_WORKSPACE_TABS, ...EXTENDED_LABS_TABS];
+
+export const REAL_TAB_IDS = new Set(REAL_WORKSPACE_TABS.map(t => t.id));
 
 export const CATEGORY_DEFINITIONS: { id: ToolCategory | "all"; label: string; icon: string }[] = [
-  { id: "all", label: "All Tools", icon: "✨" },
-  { id: "new", label: "New & Pro Tools", icon: "🔥" },
+  { id: "all", label: "All Real Tools", icon: "✨" },
   { id: "core", label: "Core Dev", icon: "💻" },
-  { id: "music", label: "Music & Audio", icon: "🎵" },
-  { id: "ai", label: "AI Agents", icon: "🤖" },
   { id: "web", label: "Web & Cloud", icon: "🌐" },
-  { id: "dev", label: "Utilities", icon: "🛠️" },
-  { id: "data", label: "Data & APIs", icon: "📊" },
-  { id: "media", label: "Media & Visuals", icon: "🎨" }
+  { id: "ai", label: "AI & Agents", icon: "🤖" },
+  { id: "dev", label: "Utilities & Data", icon: "🛠️" },
+  { id: "media", label: "Media & Audio", icon: "🎨" }
 ];
-
-const CORE_TAB_IDS = ["editor", "preview", "agents", "actions", "github", "firebase", "settings"];
 
 interface WorkspaceTabsBarProps {
   activeTab: string;
@@ -209,22 +213,10 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = memo(({
 }) => {
   const isDark = theme !== "light";
 
-  // Display mode: "compact" (core tabs + more menu) or "full" (all tabs visible in the bar)
-  const [barMode, setBarMode] = useState<"compact" | "full">(() => {
-    return (localStorage.getItem("app_workspace_bar_mode") as "compact" | "full") || "compact";
-  });
-
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<ToolCategory | "all">("all");
   const [isFullMenuOpen, setIsFullMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  // Persist bar mode
-  const toggleBarMode = () => {
-    const nextMode = barMode === "compact" ? "full" : "compact";
-    setBarMode(nextMode);
-    localStorage.setItem("app_workspace_bar_mode", nextMode);
-  };
 
   // Close full menu with Escape
   useEffect(() => {
@@ -237,10 +229,26 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = memo(({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isFullMenuOpen]);
 
-  // Smooth scroll tabs row
+  // Smooth mouse-wheel horizontal scrolling support
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY !== 0) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
+  // Smooth scroll tabs row via chevrons
   const handleScroll = (direction: "left" | "right") => {
     if (scrollContainerRef.current) {
-      const scrollOffset = direction === "left" ? -260 : 260;
+      const scrollOffset = direction === "left" ? -280 : 280;
       scrollContainerRef.current.scrollBy({ left: scrollOffset, behavior: "smooth" });
     }
   };
@@ -253,89 +261,82 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = memo(({
         activeEl.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
       }
     }
-  }, [activeTab, barMode, activeCategoryFilter]);
+  }, [activeTab, activeCategoryFilter]);
 
-  // Filter tabs for bar in full mode
+  // Main Toolbar Tabs: ALWAYS ONLY the REAL most used features (Filtered by category if selected)
+  // The new ones are NOT in the main bar!
   const displayedBarTabs = useMemo(() => {
-    if (barMode === "compact") {
-      return WORKSPACE_TABS.filter(t => CORE_TAB_IDS.includes(t.id));
-    }
     if (activeCategoryFilter === "all") {
-      return WORKSPACE_TABS;
+      return REAL_WORKSPACE_TABS;
     }
-    if (activeCategoryFilter === "new") {
-      return WORKSPACE_TABS.filter(t => t.badge === "New" || t.badge === "Pro");
+    return REAL_WORKSPACE_TABS.filter(t => t.category === activeCategoryFilter);
+  }, [activeCategoryFilter]);
+
+  // If the user opened an extended lab (new tool) from the More Tools menu,
+  // display it as an active temporary tab in the bar with a close button!
+  const activeSecondaryTab = useMemo(() => {
+    if (!REAL_TAB_IDS.has(activeTab)) {
+      return EXTENDED_LABS_TABS.find(t => t.id === activeTab) || null;
     }
-    return WORKSPACE_TABS.filter(t => t.category === activeCategoryFilter);
-  }, [barMode, activeCategoryFilter]);
+    return null;
+  }, [activeTab]);
 
-  // Check if current active tab is secondary (not in core tabs)
-  const activeSecondaryTab = !CORE_TAB_IDS.includes(activeTab)
-    ? WORKSPACE_TABS.find(t => t.id === activeTab)
-    : null;
-
-  // Search filtered tabs for the Full Menu Modal
+  // Filter tabs for the Full Menu Modal (Search across all tabs)
   const modalFilteredTabs = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
     return WORKSPACE_TABS.filter(tab => {
-      const matchesCategory =
-        activeCategoryFilter === "all" ||
-        (activeCategoryFilter === "new" ? (tab.badge === "New" || tab.badge === "Pro") : tab.category === activeCategoryFilter);
-      const q = searchQuery.toLowerCase().trim();
       const matchesSearch = !q ||
         tab.label.toLowerCase().includes(q) ||
         tab.description.toLowerCase().includes(q) ||
         tab.id.toLowerCase().includes(q) ||
         tab.category.toLowerCase().includes(q) ||
         (tab.badge && tab.badge.toLowerCase().includes(q));
-      return matchesCategory && matchesSearch;
+      return matchesSearch;
     });
-  }, [searchQuery, activeCategoryFilter]);
+  }, [searchQuery]);
 
   return (
     <>
-      {/* NORMAL TAB BAR */}
-      <div className={`h-10 border-b px-2.5 flex items-center justify-between shrink-0 z-20 transition-colors w-full relative select-none ${
-        isDark ? "border-zinc-800 bg-[#141416] text-white" : "border-slate-200 bg-white text-slate-900"
+      {/* EXECUTIVE MAIN WORKSPACE TOOLBAR */}
+      <div className={`h-10 border-b px-2 flex items-center justify-between shrink-0 z-20 transition-colors w-full relative select-none ${
+        isDark ? "border-zinc-800 bg-[#121214] text-white" : "border-slate-200 bg-white text-slate-900"
       }`}>
         
-        {/* Left Section: Scroll controls & Tabs */}
+        {/* Left Section: Scroll controls & Real Feature Tabs */}
         <div className="flex-1 min-w-0 flex items-center relative overflow-hidden pr-2">
           
-          {/* Scroll Left Button (Full Bar Mode) */}
-          {barMode === "full" && (
-            <button
-              onClick={() => handleScroll("left")}
-              className={`p-1 mr-1 rounded-md border shrink-0 transition-colors cursor-pointer z-10 ${
-                isDark ? "border-zinc-800 bg-zinc-900/90 text-zinc-400 hover:text-white" : "border-slate-200 bg-slate-100 text-slate-600 hover:text-slate-900"
+          {/* Scroll Left Button */}
+          <button
+            onClick={() => handleScroll("left")}
+            className={`p-1 mr-1 rounded-md border shrink-0 transition-colors cursor-pointer z-10 ${
+              isDark ? "border-zinc-800 bg-zinc-900/90 text-zinc-400 hover:text-white" : "border-slate-200 bg-slate-100 text-slate-600 hover:text-slate-900"
+            }`}
+            title="Scroll Real Features Left"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Quick Category Filter Selector for Real Features */}
+          <div className="flex items-center gap-1 shrink-0 mr-1.5 border-r pr-1.5 border-zinc-700/50">
+            <select
+              value={activeCategoryFilter}
+              onChange={(e) => setActiveCategoryFilter(e.target.value as any)}
+              className={`text-[11px] font-semibold px-2 py-0.5 rounded border focus:outline-none cursor-pointer transition-colors ${
+                isDark
+                  ? "bg-zinc-900 border-zinc-800 text-indigo-400 hover:bg-zinc-800 hover:border-zinc-700"
+                  : "bg-slate-100 border-slate-200 text-indigo-600 hover:bg-slate-200"
               }`}
-              title="Scroll Tabs Left"
+              title="Filter Real Features by Category"
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
-            </button>
-          )}
+              {CATEGORY_DEFINITIONS.map(cat => (
+                <option key={cat.id} value={cat.id} className={isDark ? "bg-zinc-900 text-white" : "bg-white text-slate-800"}>
+                  {cat.icon} {cat.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          {/* Category Filter Pills (Full Bar Mode) */}
-          {barMode === "full" && (
-            <div className="flex items-center gap-1 shrink-0 mr-2 border-r pr-2 border-zinc-700/50">
-              <select
-                value={activeCategoryFilter}
-                onChange={(e) => setActiveCategoryFilter(e.target.value as any)}
-                className={`text-[11px] font-semibold px-2 py-0.5 rounded border focus:outline-none cursor-pointer ${
-                  isDark
-                    ? "bg-zinc-900 border-zinc-800 text-indigo-400 hover:bg-zinc-800"
-                    : "bg-slate-100 border-slate-200 text-indigo-600 hover:bg-slate-200"
-                }`}
-              >
-                {CATEGORY_DEFINITIONS.map(cat => (
-                  <option key={cat.id} value={cat.id} className={isDark ? "bg-zinc-900 text-white" : "bg-white text-slate-800"}>
-                    {cat.icon} {cat.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Horizontally Scrollable Tabs Row */}
+          {/* Horizontally Scrollable Real Feature Tabs Row */}
           <div
             ref={scrollContainerRef}
             className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto scrollbar-none py-1 scroll-smooth"
@@ -350,11 +351,9 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = memo(({
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium tracking-normal transition-all cursor-pointer shrink-0 ${
                     isActive
-                      ? (isDark
-                          ? "bg-indigo-600 text-white font-semibold shadow-xs"
-                          : "bg-indigo-600 text-white font-semibold shadow-xs")
+                      ? "bg-indigo-600 text-white font-semibold shadow-xs"
                       : (isDark
-                          ? "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60"
+                          ? "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70"
                           : "text-slate-600 hover:text-slate-900 hover:bg-slate-100")
                   }`}
                   title={`${tab.label}: ${tab.description}`}
@@ -372,92 +371,66 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = memo(({
               );
             })}
 
-            {/* In compact mode, show the active secondary tab if opened from more menu */}
-            {barMode === "compact" && activeSecondaryTab && (
-              <div className="flex items-center gap-1 shrink-0">
+            {/* If an extended lab was opened from the menu, show it temporarily with a close button */}
+            {activeSecondaryTab && (
+              <div className="flex items-center gap-0.5 shrink-0 ml-1 pl-1 border-l border-amber-500/40">
                 <button
                   data-active="true"
                   onClick={() => setActiveTab(activeSecondaryTab.id)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold tracking-normal transition-all cursor-pointer ${
-                    isDark
-                      ? "bg-indigo-600 text-white shadow-xs"
-                      : "bg-indigo-600 text-white shadow-xs"
-                  }`}
-                  title={activeSecondaryTab.description}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-l-md text-xs font-semibold tracking-normal transition-all cursor-pointer bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-xs"
+                  title={`${activeSecondaryTab.label}: ${activeSecondaryTab.description}`}
                 >
                   <activeSecondaryTab.icon className="w-3.5 h-3.5 shrink-0 text-white" />
                   <span className="whitespace-nowrap">{activeSecondaryTab.label}</span>
-                  {activeSecondaryTab.badge && (
-                    <span className="px-1 rounded text-[9px] bg-white/20 text-white font-bold">
-                      {activeSecondaryTab.badge}
-                    </span>
-                  )}
+                  <span className="px-1 rounded text-[9px] bg-black/30 text-amber-200 font-bold uppercase">
+                    Lab
+                  </span>
                 </button>
                 <button
                   onClick={() => setActiveTab("editor")}
-                  className={`p-1 rounded hover:bg-white/10 text-white/70 hover:text-white cursor-pointer ${
-                    isDark ? "bg-zinc-800" : "bg-slate-200"
-                  }`}
-                  title="Close tab (Return to Code Editor)"
+                  className="p-1 rounded-r-md bg-amber-700 hover:bg-amber-800 text-white/90 hover:text-white cursor-pointer transition-colors"
+                  title="Close Lab (Return to Code Editor)"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             )}
           </div>
 
-          {/* Scroll Right Button (Full Bar Mode) */}
-          {barMode === "full" && (
-            <button
-              onClick={() => handleScroll("right")}
-              className={`p-1 ml-1 rounded-md border shrink-0 transition-colors cursor-pointer z-10 ${
-                isDark ? "border-zinc-800 bg-zinc-900/90 text-zinc-400 hover:text-white" : "border-slate-200 bg-slate-100 text-slate-600 hover:text-slate-900"
-              }`}
-              title="Scroll Tabs Right"
-            >
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          )}
-
-          {/* "MORE TOOLS" / FULL MENU BUTTON */}
+          {/* Scroll Right Button */}
           <button
-            onClick={() => setIsFullMenuOpen(true)}
-            className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer shrink-0 ml-1 border ${
-              isDark
-                ? "border-indigo-500/30 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20"
-                : "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+            onClick={() => handleScroll("right")}
+            className={`p-1 ml-1 rounded-md border shrink-0 transition-colors cursor-pointer z-10 ${
+              isDark ? "border-zinc-800 bg-zinc-900/90 text-zinc-400 hover:text-white" : "border-slate-200 bg-slate-100 text-slate-600 hover:text-slate-900"
             }`}
-            title={`Open Full Tools & Agents Library (All ${WORKSPACE_TABS.length} Modules)`}
+            title="Scroll Real Features Right"
           >
-            <LayoutGrid className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="font-semibold whitespace-nowrap">More Tools</span>
-            <span className={`text-[9px] font-mono px-1 rounded ${
-              isDark ? "bg-indigo-900/60 text-indigo-200" : "bg-indigo-100 text-indigo-800"
-            }`}>
-              {WORKSPACE_TABS.length}
-            </span>
+            <ChevronRight className="w-3.5 h-3.5" />
           </button>
 
-          {/* BAR MODE TOGGLE SWITCH ("Full in normal bar") */}
+          {/* "+ Dev Labs" / More Tools Button (Access new developer labs without crowding main bar) */}
           <button
-            onClick={toggleBarMode}
-            className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer shrink-0 ml-1 border ${
-              barMode === "full"
-                ? (isDark ? "bg-amber-500/20 border-amber-500/40 text-amber-300" : "bg-amber-50 border-amber-300 text-amber-800")
-                : (isDark ? "border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800" : "border-slate-200 text-slate-600 hover:bg-slate-100")
+            onClick={() => setIsFullMenuOpen(true)}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer shrink-0 ml-1.5 border shadow-2xs ${
+              isDark
+                ? "border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"
+                : "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
             }`}
-            title={barMode === "full" ? "Switch to Compact Bar Mode (Core Tabs Only)" : `Switch to Full Bar Mode (Show All ${WORKSPACE_TABS.length} Tools in Normal Bar)`}
+            title="Open Specialized Developer Labs & Full Module Catalog"
           >
-            <Sliders className="w-3 h-3 text-amber-400" />
-            <span className="hidden xl:inline whitespace-nowrap">
-              {barMode === "full" ? "Compact Bar" : "Full in Bar"}
+            <LayoutGrid className="w-3.5 h-3.5 text-amber-400" />
+            <span className="whitespace-nowrap">+ Dev Labs</span>
+            <span className={`text-[9px] font-mono px-1 rounded font-bold ${
+              isDark ? "bg-amber-900/60 text-amber-200" : "bg-amber-200 text-amber-900"
+            }`}>
+              {EXTENDED_LABS_TABS.length}
             </span>
           </button>
         </div>
 
         {/* Right Section: Action buttons & Stats */}
         <div className={`shrink-0 flex items-center gap-2 pl-2 border-l ${
-          isDark ? "border-zinc-800 bg-[#141416]" : "border-slate-200 bg-white"
+          isDark ? "border-zinc-800 bg-[#121214]" : "border-slate-200 bg-white"
         }`}>
           {/* Runner Launcher Modal Button */}
           <button
@@ -487,7 +460,7 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = memo(({
         </div>
       </div>
 
-      {/* FULL TOOLS & AGENTS MODAL (Mounted in document.body to eliminate all UI clipping/overflow bugs) */}
+      {/* DEV LABS & ALL TOOLS MODAL (Mounted in document.body) */}
       {isFullMenuOpen && createPortal(
         <div
           className="fixed inset-0 z-[95] bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-150"
@@ -504,64 +477,44 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = memo(({
               isDark ? "border-zinc-800 bg-[#121214]" : "border-slate-200 bg-slate-50"
             }`}>
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-indigo-600 text-white shadow-md">
+                <div className="p-2 rounded-xl bg-gradient-to-tr from-amber-600 to-indigo-600 text-white shadow-md">
                   <LayoutGrid className="w-5 h-5" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-base font-bold tracking-tight">Studio Tools & Agents Menu</h2>
-                    <span className="text-xs px-2 py-0.5 rounded-full font-mono font-semibold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
-                      {WORKSPACE_TABS.length} Modules
+                    <h2 className="text-base font-bold tracking-tight">Specialized Developer Labs & Tools</h2>
+                    <span className="text-xs px-2 py-0.5 rounded-full font-mono font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      {EXTENDED_LABS_TABS.length} New Labs
                     </span>
                   </div>
                   <p className={`text-xs ${isDark ? "text-zinc-400" : "text-slate-500"}`}>
-                    Choose any module to open it, or toggle Full Bar Mode to keep all tools in the top bar.
+                    All 58 core features stay in your main toolbar. Launch any experimental developer lab here without cluttering the bar.
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    toggleBarMode();
-                  }}
-                  className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    barMode === "full"
-                      ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
-                      : isDark
-                      ? "bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700"
-                      : "bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200"
-                  }`}
-                  title="Show all tools directly in the normal bar"
-                >
-                  <Sliders className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{barMode === "full" ? "Full Bar Enabled" : "Show All in Normal Bar"}</span>
-                </button>
-
-                <button
-                  onClick={() => setIsFullMenuOpen(false)}
-                  className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
-                    isDark ? "border-zinc-800 hover:bg-zinc-800 text-zinc-400 hover:text-white" : "border-slate-200 hover:bg-slate-100 text-slate-500 hover:text-slate-900"
-                  }`}
-                  title="Close Menu (Esc)"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+              <button
+                onClick={() => setIsFullMenuOpen(false)}
+                className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                  isDark ? "border-zinc-800 hover:bg-zinc-800 text-zinc-400 hover:text-white" : "border-slate-200 hover:bg-slate-100 text-slate-500 hover:text-slate-900"
+                }`}
+                title="Close Menu (Esc)"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            {/* Search & Category Filter Controls */}
-            <div className={`p-4 border-b space-y-3 shrink-0 ${
+            {/* Search Input */}
+            <div className={`p-4 border-b shrink-0 ${
               isDark ? "border-zinc-800 bg-[#16161a]" : "border-slate-100 bg-white"
             }`}>
-              {/* Search input */}
               <div className="relative">
                 <Search className={`w-4 h-4 absolute left-3.5 top-3 ${isDark ? "text-zinc-400" : "text-slate-400"}`} />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search 54 tools, AI agents, audio studios, APIs, or utilities..."
+                  placeholder="Search labs & tools (e.g. stress test, git graph, json schema, websocket, docker)..."
                   className={`w-full text-xs pl-10 pr-9 py-2.5 rounded-xl border focus:outline-none transition-all ${
                     isDark 
                       ? "bg-zinc-900/90 border-zinc-800 text-zinc-100 placeholder-zinc-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30" 
@@ -578,52 +531,26 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = memo(({
                   </button>
                 )}
               </div>
-
-              {/* Category Pills */}
-              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1">
-                {CATEGORY_DEFINITIONS.map(cat => {
-                  const isSelected = activeCategoryFilter === cat.id;
-                  const count = cat.id === "all"
-                    ? WORKSPACE_TABS.length
-                    : cat.id === "new"
-                    ? WORKSPACE_TABS.filter(t => t.badge === "New" || t.badge === "Pro").length
-                    : WORKSPACE_TABS.filter(t => t.category === cat.id).length;
-                  return (
-                    <button
-                      key={cat.id}
-                      onClick={() => setActiveCategoryFilter(cat.id)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                        isSelected
-                          ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
-                          : isDark
-                          ? "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
-                          : "bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-200"
-                      }`}
-                    >
-                      <span>{cat.icon}</span>
-                      <span>{cat.label}</span>
-                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                        isSelected ? "bg-white/20 text-white" : (isDark ? "bg-zinc-800 text-zinc-400" : "bg-slate-200 text-slate-600")
-                      }`}>
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
             </div>
 
             {/* Tools Grid Area */}
             <div className={`p-4 overflow-y-auto flex-1 ${isDark ? "bg-[#141418]" : "bg-slate-50/50"}`}>
-              {modalFilteredTabs.length === 0 ? (
-                <div className="text-center py-12">
-                  <Bot className="w-10 h-10 mx-auto text-zinc-500 mb-2 opacity-60" />
-                  <p className="text-sm font-semibold text-zinc-300">No matching tools or agents found</p>
-                  <p className="text-xs text-zinc-500 mt-1">Try searching for keywords like "audio", "code", "weather", or "image".</p>
+              {/* Specialized Labs Section */}
+              <div className="mb-4">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <Flame className="w-4 h-4 text-amber-400" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400">
+                    New Developer Labs ({EXTENDED_LABS_TABS.length})
+                  </h3>
+                  <span className={`text-[10px] ${isDark ? "text-zinc-500" : "text-slate-400"}`}>
+                    — Isolated from main bar
+                  </span>
                 </div>
-              ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                  {modalFilteredTabs.map(tab => {
+                  {EXTENDED_LABS_TABS.filter(t => {
+                    const q = searchQuery.toLowerCase().trim();
+                    return !q || t.label.toLowerCase().includes(q) || t.description.toLowerCase().includes(q) || t.id.toLowerCase().includes(q);
+                  }).map(tab => {
                     const TabIcon = tab.icon;
                     const isActive = activeTab === tab.id;
                     return (
@@ -636,70 +563,116 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = memo(({
                         className={`p-3 rounded-xl border flex flex-col justify-between transition-all cursor-pointer text-left group relative ${
                           isActive
                             ? (isDark
-                                ? "bg-indigo-950/40 border-indigo-500/80 shadow-md shadow-indigo-500/10 ring-1 ring-indigo-500/30"
-                                : "bg-indigo-50/80 border-indigo-500 shadow-md shadow-indigo-500/10 ring-1 ring-indigo-500/30")
+                                ? "bg-amber-950/40 border-amber-500/80 shadow-md shadow-amber-500/10 ring-1 ring-amber-500/30"
+                                : "bg-amber-50/80 border-amber-500 shadow-md shadow-amber-500/10 ring-1 ring-amber-500/30")
                             : (isDark
-                                ? "bg-zinc-900/60 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800/80"
-                                : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50")
+                                ? "bg-zinc-900/60 border-zinc-800 hover:border-amber-500/50 hover:bg-zinc-800/80"
+                                : "bg-white border-slate-200 hover:border-amber-400 hover:bg-slate-50")
                         }`}
                       >
-                        {/* Top row: Icon, Name, Badge */}
                         <div className="flex items-start gap-2.5">
                           <div className={`p-2 rounded-lg shrink-0 transition-colors ${
                             isActive
-                              ? "bg-indigo-600 text-white"
+                              ? "bg-amber-600 text-white"
                               : isDark
-                              ? "bg-zinc-800 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white"
-                              : "bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white"
+                              ? "bg-zinc-800 text-amber-400 group-hover:bg-amber-600 group-hover:text-white"
+                              : "bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white"
                           }`}>
                             <TabIcon className="w-4 h-4" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-xs truncate group-hover:text-indigo-400 transition-colors">
+                              <span className="font-bold text-xs truncate group-hover:text-amber-400 transition-colors">
                                 {tab.label}
                               </span>
-                              {tab.badge && (
-                                <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${tab.badgeColor || "bg-indigo-500/20 text-indigo-300"}`}>
-                                  {tab.badge}
-                                </span>
-                              )}
+                              <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300">
+                                Lab
+                              </span>
                             </div>
                             <span className={`text-[10px] font-mono capitalize block ${
                               isDark ? "text-zinc-500" : "text-slate-400"
                             }`}>
-                              {tab.category}
+                              Developer Lab
                             </span>
                           </div>
                           {isActive && (
-                            <span className="p-1 rounded-full bg-emerald-500 text-white shrink-0 shadow-xs" title="Currently Open">
+                            <span className="p-1 rounded-full bg-amber-500 text-white shrink-0 shadow-xs" title="Currently Open">
                               <Check className="w-3 h-3" />
                             </span>
                           )}
                         </div>
 
-                        {/* Description */}
                         <p className={`text-[11px] leading-relaxed mt-2 line-clamp-2 ${
                           isDark ? "text-zinc-400" : "text-slate-600"
                         }`}>
                           {tab.description}
                         </p>
 
-                        {/* Bottom humanized action hint */}
                         <div className={`mt-3 pt-2 border-t flex items-center justify-between text-[10px] ${
                           isDark ? "border-zinc-800/80 text-zinc-500" : "border-slate-100 text-slate-400"
                         }`}>
                           <span className="flex items-center gap-1 font-medium">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                            <span>Live & Interactive</span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                            <span>Interactive Lab</span>
                           </span>
-                          <span className="text-indigo-400 font-semibold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
-                            Open Tool →
+                          <span className="text-amber-400 font-semibold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
+                            Launch Lab →
                           </span>
                         </div>
                       </div>
                     );
                   })}
+                </div>
+              </div>
+
+              {/* Complete Catalog Section if user is searching */}
+              {searchQuery && (
+                <div className="mt-6 pt-4 border-t border-zinc-800/60">
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <Sparkles className="w-4 h-4 text-indigo-400" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-400">
+                      All Matching Features ({modalFilteredTabs.length})
+                    </h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                    {modalFilteredTabs.map(tab => {
+                      const TabIcon = tab.icon;
+                      const isActive = activeTab === tab.id;
+                      return (
+                        <div
+                          key={tab.id}
+                          onClick={() => {
+                            setActiveTab(tab.id);
+                            setIsFullMenuOpen(false);
+                          }}
+                          className={`p-3 rounded-xl border flex flex-col justify-between transition-all cursor-pointer text-left group ${
+                            isActive
+                              ? "bg-indigo-950/40 border-indigo-500/80 shadow-md ring-1 ring-indigo-500/30"
+                              : (isDark ? "bg-zinc-900/60 border-zinc-800 hover:border-zinc-700" : "bg-white border-slate-200 hover:border-slate-300")
+                          }`}
+                        >
+                          <div className="flex items-start gap-2.5">
+                            <div className={`p-2 rounded-lg shrink-0 ${
+                              isActive ? "bg-indigo-600 text-white" : (isDark ? "bg-zinc-800 text-indigo-400" : "bg-indigo-50 text-indigo-600")
+                            }`}>
+                              <TabIcon className="w-4 h-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="font-bold text-xs truncate block group-hover:text-indigo-400">
+                                {tab.label}
+                              </span>
+                              <span className={`text-[10px] capitalize ${isDark ? "text-zinc-500" : "text-slate-400"}`}>
+                                {tab.category}
+                              </span>
+                            </div>
+                          </div>
+                          <p className={`text-[11px] mt-2 line-clamp-2 ${isDark ? "text-zinc-400" : "text-slate-600"}`}>
+                            {tab.description}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>

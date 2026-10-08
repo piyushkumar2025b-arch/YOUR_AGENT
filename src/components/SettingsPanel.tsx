@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Settings, Sliders, ShieldCheck, Lock, Database, Sparkles, Key, 
   Cpu, Trash2, CheckCircle2, AlertTriangle, Monitor, Sun, Moon, 
@@ -48,18 +48,36 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     [key: string]: { status: "ok" | "error" | "missing"; latency: number; msg: string };
   }>({});
 
+  // In-memory provider API key state (BUG-P1-011 & BUG-FE-003: Never persist sensitive keys in browser localStorage)
+  const [geminiKey, setGeminiKey] = useState<string>("");
+  const [ytKey, setYtKey] = useState<string>("");
+  const [unsplashKey, setUnsplashKey] = useState<string>("");
+  const [weatherKey, setWeatherKey] = useState<string>("");
+
+  useEffect(() => {
+    try {
+      localStorage.removeItem("gemini_api_key");
+      localStorage.removeItem("youtube_api_key");
+      localStorage.removeItem("unsplash_api_key");
+      localStorage.removeItem("openweather_api_key");
+    } catch {}
+  }, []);
+
   const handleTestAllKeys = async () => {
     setIsTestingKeys(true);
     const results: { [key: string]: { status: "ok" | "error" | "missing"; latency: number; msg: string } } = {};
 
-    // 1. OpenRouter Key test
+    // 1. OpenRouter Key test (BUG-012: Pass key via Authorization header)
     if (apiKey) {
       const start = performance.now();
       try {
         const res = await fetch("/api/openrouter/verify-key", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ apiKey })
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey.trim()}`
+          }
         }).catch(() => null);
         const lat = Math.round(performance.now() - start);
         if (res && res.ok) {
@@ -79,12 +97,16 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       results["openrouter"] = { status: "missing", latency: 0, msg: "Key not set" };
     }
 
-    // 2. Gemini Key test
-    const geminiKey = localStorage.getItem("gemini_api_key");
+    // 2. Gemini Key test (BUG-013: Pass key via x-goog-api-key header instead of URL parameter)
     if (geminiKey) {
       const start = performance.now();
       try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`).catch(() => null);
+        const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models", {
+          method: "GET",
+          headers: {
+            "x-goog-api-key": geminiKey.trim()
+          }
+        }).catch(() => null);
         const lat = Math.round(performance.now() - start);
         if (res && res.ok) {
           results["gemini"] = { status: "ok", latency: lat, msg: "Active (200 OK)" };
@@ -99,7 +121,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }
 
     // 3. YouTube Key test
-    const ytKey = localStorage.getItem("youtube_api_key");
     if (ytKey) {
       const start = performance.now();
       try {
@@ -520,8 +541,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   <label className="text-[10px] font-bold text-slate-300 uppercase block">Google Gemini API Key</label>
                   <input
                     type="password"
-                    value={localStorage.getItem("gemini_api_key") || ""}
-                    onChange={(e) => localStorage.setItem("gemini_api_key", e.target.value)}
+                    value={geminiKey}
+                    onChange={(e) => setGeminiKey(e.target.value)}
                     placeholder="AIzaSy..."
                     className="w-full p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white font-mono text-xs outline-none focus:border-indigo-500"
                   />
@@ -532,8 +553,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   <label className="text-[10px] font-bold text-slate-300 uppercase block">YouTube Data API Key</label>
                   <input
                     type="password"
-                    value={localStorage.getItem("youtube_api_key") || ""}
-                    onChange={(e) => localStorage.setItem("youtube_api_key", e.target.value)}
+                    value={ytKey}
+                    onChange={(e) => setYtKey(e.target.value)}
                     placeholder="AIzaSy..."
                     className="w-full p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white font-mono text-xs outline-none focus:border-indigo-500"
                   />
@@ -544,8 +565,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   <label className="text-[10px] font-bold text-slate-300 uppercase block">Unsplash Stock Photos API Key</label>
                   <input
                     type="password"
-                    value={localStorage.getItem("unsplash_api_key") || ""}
-                    onChange={(e) => localStorage.setItem("unsplash_api_key", e.target.value)}
+                    value={unsplashKey}
+                    onChange={(e) => setUnsplashKey(e.target.value)}
                     placeholder="Client-ID..."
                     className="w-full p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white font-mono text-xs outline-none focus:border-indigo-500"
                   />
@@ -556,8 +577,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   <label className="text-[10px] font-bold text-slate-300 uppercase block">OpenWeather / AQI Key</label>
                   <input
                     type="password"
-                    value={localStorage.getItem("openweather_api_key") || ""}
-                    onChange={(e) => localStorage.setItem("openweather_api_key", e.target.value)}
+                    value={weatherKey}
+                    onChange={(e) => setWeatherKey(e.target.value)}
                     placeholder="ow_..."
                     className="w-full p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white font-mono text-xs outline-none focus:border-indigo-500"
                   />
@@ -594,7 +615,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   OpenRouter keys usually begin with "sk-or-". Please verify your key.
                 </p>
               )}
-              <p className="text-[10px] text-slate-400">Used to route prompts directly to your chosen Target AI Brain model.</p>
+              <p className="text-[10px] text-slate-400">Used to route prompts directly to your chosen Target AI Brain model. Stored locally in reversible browser-side protection. Any code executing under this origin may access the key.</p>
             </div>
 
             {/* HuggingFace Connector */}

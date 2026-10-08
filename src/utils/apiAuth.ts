@@ -1,24 +1,30 @@
-// API Authentication and Session Header Utilities
+// API Authentication and Session Header Utilities (BUG-P0-002)
+// Bearer tokens are kept in memory only; browser sessions rely on HttpOnly cookie transport
+let inMemorySessionToken = "";
+
 export function getAuthToken(): string {
-  if (typeof window === "undefined") return "";
-  return localStorage.getItem("app_auth_token") || "";
+  if (inMemorySessionToken && inMemorySessionToken.startsWith("token.")) {
+    return inMemorySessionToken;
+  }
+  return inMemorySessionToken;
 }
 
 export function setAuthToken(token: string): void {
-  if (typeof window === "undefined") return;
-  if (token) {
-    localStorage.setItem("app_auth_token", token);
-  } else {
-    localStorage.removeItem("app_auth_token");
+  inMemorySessionToken = token || "";
+  if (typeof window !== "undefined") {
+    try {
+      // Ensure no session tokens leak into JavaScript-accessible web storage
+      sessionStorage.removeItem("app_auth_token");
+      localStorage.removeItem("app_auth_token");
+    } catch {}
   }
 }
 
 let inFlightSessionPromise: Promise<string> | null = null;
 
 export async function ensureSessionToken(): Promise<string> {
-  const existing = getAuthToken();
-  if (existing && existing.startsWith("token.")) {
-    return existing;
+  if (inMemorySessionToken && inMemorySessionToken.startsWith("token.")) {
+    return inMemorySessionToken;
   }
 
   if (inFlightSessionPromise) {
@@ -26,8 +32,31 @@ export async function ensureSessionToken(): Promise<string> {
   }
 
   inFlightSessionPromise = (async () => {
+    const origin = typeof window !== "undefined" && window.location ? "" : "http://127.0.0.1:3000";
+
+    // 1. BUG-AUTH-001: First attempt to recover existing authenticated session from server cookie
     try {
-      const res = await fetch("/api/auth/guest-session", { method: "POST" });
+      const meRes = await fetch(`${origin}/api/auth/me`, {
+        method: "GET",
+        credentials: "include"
+      });
+      if (meRes.ok) {
+        const meData = await meRes.json().catch(() => null);
+        if (meData?.authenticated && meData?.token) {
+          setAuthToken(meData.token);
+          return meData.token;
+        }
+      }
+    } catch {
+      // Ignore network errors when probing /api/auth/me
+    }
+
+    // 2. Only mint a guest session if no authenticated session exists
+    try {
+      const res = await fetch(`${origin}/api/auth/guest-session`, {
+        method: "POST",
+        credentials: "include"
+      });
       if (res.ok) {
         const data = await res.json().catch(() => null);
         if (data?.token) {
@@ -40,13 +69,7 @@ export async function ensureSessionToken(): Promise<string> {
     } finally {
       inFlightSessionPromise = null;
     }
-    const current = getAuthToken();
-    if (!current) {
-      const fallbackToken = `token.usr_guest_${Math.random().toString(36).substring(2, 10)}`;
-      setAuthToken(fallbackToken);
-      return fallbackToken;
-    }
-    return current;
+    return inMemorySessionToken;
   })();
 
   return inFlightSessionPromise;
@@ -105,11 +128,39 @@ export async function fetchWithAuth(
     ...(options.headers as Record<string, string> || {})
   };
 
+  const targetUrl = (url.startsWith("/") && typeof window === "undefined")
+    ? `http://127.0.0.1:3000${url}`
+    : url;
+
   try {
-    return await fetch(url, {
+    const resp = await fetch(targetUrl, {
       ...options,
+      credentials: options.credentials || "include",
       headers: mergedHeaders
     });
+
+    // If session expired (401), do not silently downgrade authenticated accounts to guest (BUG-007)
+    if (resp.status === 401 && !userApiKey && !url.includes("/api/auth/")) {
+      if (inMemorySessionToken && !inMemorySessionToken.includes("usr_guest_")) {
+        setAuthToken("");
+        return resp;
+      }
+      setAuthToken("");
+      const freshToken = await ensureSessionToken().catch(() => "");
+      if (freshToken) {
+        const retryHeaders = getAuthHeaders();
+        return await fetch(targetUrl, {
+          ...options,
+          credentials: options.credentials || "include",
+          headers: {
+            ...retryHeaders,
+            ...((options.headers as Record<string, string>) || {})
+          }
+        });
+      }
+    }
+
+    return resp;
   } catch (err: any) {
     const isAbort =
       Boolean(options.signal?.aborted) ||

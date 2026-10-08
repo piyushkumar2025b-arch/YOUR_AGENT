@@ -43,6 +43,7 @@ export interface HeaderBarProps {
   unresolvedErrorCount?: number;
   setIsShortcutsHelpOpen?: (open: boolean) => void;
   setIsMathPlotterOpen?: (open: boolean) => void;
+  onOpenCodeRunner?: () => void;
   onOpenMusicStudio?: () => void;
   onOpenCalendar?: () => void;
   onOpenSecurityShield?: () => void;
@@ -74,6 +75,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   unresolvedErrorCount = 0,
   setIsShortcutsHelpOpen,
   setIsMathPlotterOpen,
+  onOpenCodeRunner,
   onOpenMusicStudio,
   onOpenCalendar,
   onOpenSecurityShield,
@@ -89,23 +91,9 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   onExitWorkspace
 }) => {
   const isDark = theme !== "light";
-  const [isToolsOpen, setIsToolsOpen] = useState(false);
-  const toolsDropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (toolsDropdownRef.current && !toolsDropdownRef.current.contains(e.target as Node)) {
-        setIsToolsOpen(false);
-      }
-    };
-    if (isToolsOpen) {
-      document.addEventListener("mousedown", handleOutsideClick);
-    }
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, [isToolsOpen]);
 
   return (
-    <header className={`w-full px-3.5 border-b flex items-center justify-between shrink-0 font-sans text-xs transition-colors duration-200 z-40 relative ${
+    <header className={`w-full px-2.5 sm:px-3.5 border-b flex items-center justify-between shrink-0 font-sans text-xs transition-colors duration-200 z-40 relative select-none ${
       isDark 
         ? "bg-[#101014] text-zinc-100 border-zinc-800/80" 
         : "bg-white text-slate-900 border-slate-200/80 shadow-xs"
@@ -113,7 +101,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
     style={{ height: "46px" }}
     >
       {/* Left section: Sidebar Toggle, Studio Logo & Title */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2 shrink-0">
         {/* Sidebar Toggle Button */}
         {onToggleSidebar && (
           <button
@@ -171,7 +159,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
 
         {/* Template Selector Dropdown */}
         {templates.length > 0 && handleTemplateLoad && (
-          <div className="relative ml-2 hidden sm:flex items-center gap-1">
+          <div className="relative ml-1.5 hidden md:flex items-center gap-1">
             <Layers className={`w-3.5 h-3.5 ${isDark ? "text-zinc-400" : "text-slate-500"}`} />
             <select
               onChange={(e) => handleTemplateLoad(e.target.value)}
@@ -193,14 +181,14 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         )}
       </div>
 
-      {/* Right section: Streamlined Action Controls */}
-      <div className="flex items-center gap-1 sm:gap-1.5">
+      {/* Right section: All Most Used Real Features Directly in Toolbar */}
+      <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto scrollbar-none py-1">
 
-        {/* COMMAND PALETTE BUTTON (⌘K) */}
+        {/* 1. COMMAND PALETTE (⌘K) */}
         {setIsCommandPaletteOpen && (
           <button
             onClick={() => setIsCommandPaletteOpen(true)}
-            className={`px-2 py-1 rounded-lg font-medium flex items-center gap-1.5 transition-colors cursor-pointer text-xs border ${
+            className={`px-2 py-1 rounded-lg font-medium flex items-center gap-1.5 transition-colors cursor-pointer text-xs border shrink-0 ${
               isDark
                 ? "bg-zinc-900 border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700"
                 : "bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-900 hover:border-slate-300"
@@ -208,7 +196,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             title="Open Command Palette (Ctrl+K)"
           >
             <Terminal className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="hidden md:inline">Palette</span>
+            <span className="hidden lg:inline">Palette</span>
             <kbd className={`text-[10px] font-mono px-1 rounded ${
               isDark ? "bg-zinc-800 text-zinc-400" : "bg-slate-200 text-slate-600"
             }`}>
@@ -217,11 +205,142 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           </button>
         )}
 
-        {/* DOWNLOAD WORKSPACE ZIP */}
+        {/* 2. RUN CODE / SANDBOX */}
+        {onOpenCodeRunner && (
+          <button
+            onClick={onOpenCodeRunner}
+            className={`px-2 py-1 rounded-lg font-medium flex items-center gap-1 transition-colors cursor-pointer text-xs border shrink-0 ${
+              isDark
+                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
+                : "bg-emerald-50 border-emerald-300/60 text-emerald-700 hover:bg-emerald-100"
+            }`}
+            title="Run Code in Isolated Sandbox"
+          >
+            <Terminal className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden xl:inline">Runner</span>
+          </button>
+        )}
+
+        {/* 3. SECURITY LAB */}
+        {onOpenSecurityShield && (
+          <button
+            onClick={onOpenSecurityShield}
+            className={`px-2 py-1 rounded-lg font-medium flex items-center gap-1 transition-colors cursor-pointer text-xs border shrink-0 ${
+              isDark
+                ? "border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800/80"
+                : "border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+            }`}
+            title="Open Security Lab & Vulnerability Scanner"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden lg:inline">Security</span>
+            <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-emerald-500/20 text-emerald-300 hidden sm:inline">A+</span>
+          </button>
+        )}
+
+        {/* 4. API HEALTH & STATUS */}
+        {onOpenApiDashboard && (
+          <button
+            onClick={onOpenApiDashboard}
+            className={`px-2 py-1 rounded-lg font-medium flex items-center gap-1 transition-colors cursor-pointer text-xs border shrink-0 ${
+              isDark
+                ? "border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800/80"
+                : "border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+            }`}
+            title="Open Realtime API Status & Latency Monitor"
+          >
+            <Activity className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden xl:inline">API Status</span>
+          </button>
+        )}
+
+        {/* 5. GOOGLE WORKSPACE */}
+        {onOpenGoogleServices && (
+          <button
+            onClick={onOpenGoogleServices}
+            className={`px-2 py-1 rounded-lg font-medium flex items-center gap-1 transition-colors cursor-pointer text-xs border shrink-0 ${
+              isDark
+                ? "border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800/80"
+                : "border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+            }`}
+            title="Google Studio & Workspace Integration (Gmail, Drive)"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+            <span className="hidden xl:inline">Workspace</span>
+          </button>
+        )}
+
+        {/* 6. GOOGLE CALENDAR */}
+        {onOpenCalendar && (
+          <button
+            onClick={onOpenCalendar}
+            className={`px-2 py-1 rounded-lg font-medium flex items-center gap-1 transition-colors cursor-pointer text-xs border shrink-0 ${
+              isDark
+                ? "border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800/80"
+                : "border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+            }`}
+            title="Google Calendar & Scheduling Manager"
+          >
+            <Calendar className="w-3.5 h-3.5 text-purple-400" />
+            <span className="hidden xl:inline">Calendar</span>
+          </button>
+        )}
+
+        {/* 7. MATH FUNCTIONS PLOTTER */}
+        {setIsMathPlotterOpen && (
+          <button
+            onClick={() => setIsMathPlotterOpen(true)}
+            className={`px-2 py-1 rounded-lg font-medium flex items-center gap-1 transition-colors cursor-pointer text-xs border shrink-0 ${
+              isDark
+                ? "border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800/80"
+                : "border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+            }`}
+            title="Open Scientific Calculus & 2D Math Plotter"
+          >
+            <Calculator className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="hidden xl:inline">Math</span>
+          </button>
+        )}
+
+        {/* 8. LAYOUT SLIDERS BAR */}
+        {setShowSlidersBar && (
+          <button
+            onClick={() => setShowSlidersBar(prev => !prev)}
+            className={`px-2 py-1 rounded-lg font-medium flex items-center gap-1 transition-colors cursor-pointer text-xs border shrink-0 ${
+              showSlidersBar
+                ? (isDark ? "bg-amber-500/20 border-amber-500/40 text-amber-300" : "bg-amber-50 border-amber-300 text-amber-800")
+                : (isDark
+                    ? "border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800/80"
+                    : "border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100")
+            }`}
+            title="Toggle Layout Sizing & Border Sliders"
+          >
+            <Sliders className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden 2xl:inline">Sliders</span>
+          </button>
+        )}
+
+        {/* 9. THEME CUSTOMIZER */}
+        {onOpenThemeSelector && (
+          <button
+            onClick={onOpenThemeSelector}
+            className={`px-2 py-1 rounded-lg font-medium flex items-center gap-1 transition-colors cursor-pointer text-xs border shrink-0 ${
+              isDark
+                ? "border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800/80"
+                : "border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+            }`}
+            title="Open Theme Palette & Color Customizer"
+          >
+            <Palette className="w-3.5 h-3.5 text-purple-400" />
+            <span className="hidden 2xl:inline">Themes</span>
+          </button>
+        )}
+
+        {/* 10. EXPORT WORKSPACE ZIP */}
         {handleDownloadZip && (
           <button
             onClick={handleDownloadZip}
-            className={`px-2 py-1 rounded-lg font-medium flex items-center gap-1 transition-colors cursor-pointer text-xs border ${
+            className={`px-2 py-1 rounded-lg font-medium flex items-center gap-1 transition-colors cursor-pointer text-xs border shrink-0 ${
               isDark
                 ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
                 : "bg-emerald-50 border-emerald-300/60 text-emerald-700 hover:bg-emerald-100"
@@ -233,160 +352,42 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           </button>
         )}
 
-        {/* CONSOLIDATED STUDIO TOOLS DROPDOWN */}
-        <div className="relative" ref={toolsDropdownRef}>
+        {/* 11. UPLOAD TO GOOGLE DRIVE */}
+        {handleUploadToDrive && (
           <button
-            onClick={() => setIsToolsOpen(!isToolsOpen)}
-            className={`px-2 py-1 rounded-lg font-medium flex items-center gap-1 transition-colors cursor-pointer text-xs border ${
-              isToolsOpen
-                ? "bg-indigo-600 text-white border-indigo-500"
-                : isDark
+            onClick={handleUploadToDrive}
+            className={`px-2 py-1 rounded-lg font-medium flex items-center gap-1 transition-colors cursor-pointer text-xs border shrink-0 ${
+              isDark
                 ? "border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800/80"
                 : "border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100"
             }`}
-            title="Access Developer Tools & Studio Labs"
+            title="Backup & Upload Workspace to Google Drive"
           >
-            <Wrench className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="hidden sm:inline">Tools</span>
-            <ChevronDown className={`w-3 h-3 transition-transform ${isToolsOpen ? "rotate-180" : ""}`} />
+            <Upload className="w-3.5 h-3.5 text-sky-400" />
+            <span className="hidden xl:inline">Drive</span>
           </button>
+        )}
 
-          {isToolsOpen && (
-            <div className={`absolute right-0 top-full mt-1.5 w-72 max-h-[calc(100vh-60px)] overflow-y-auto rounded-xl shadow-2xl border p-1.5 z-50 animate-in fade-in-50 zoom-in-95 space-y-0.5 ${
-              isDark ? "bg-[#18181b] border-zinc-800 text-zinc-100 shadow-black/80" : "bg-white border-slate-200 text-slate-900 shadow-slate-900/20"
-            }`}>
-              {onOpenSecurityShield && (
-                <button
-                  onClick={() => { onOpenSecurityShield(); setIsToolsOpen(false); }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer ${
-                    isDark ? "hover:bg-zinc-800 text-zinc-300" : "hover:bg-slate-100 text-slate-700"
-                  }`}
-                >
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                  <div className="flex-1">
-                    <span className="font-medium">Security Lab</span>
-                    <span className="ml-1.5 px-1 py-0.2 rounded text-[9px] font-mono bg-emerald-500/20 text-emerald-300">A+</span>
-                  </div>
-                </button>
-              )}
+        {/* 12. SHORTCUTS & HELP */}
+        {setIsShortcutsHelpOpen && (
+          <button
+            onClick={() => setIsShortcutsHelpOpen(true)}
+            className={`p-1.5 rounded-lg font-medium flex items-center justify-center transition-colors cursor-pointer border shrink-0 ${
+              isDark
+                ? "border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800/80"
+                : "border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+            }`}
+            title="Keyboard Shortcuts & Developer Help"
+          >
+            <HelpCircle className="w-3.5 h-3.5" />
+          </button>
+        )}
 
-              {onOpenApiDashboard && (
-                <button
-                  onClick={() => { onOpenApiDashboard(); setIsToolsOpen(false); }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer ${
-                    isDark ? "hover:bg-zinc-800 text-zinc-300" : "hover:bg-slate-100 text-slate-700"
-                  }`}
-                >
-                  <Activity className="w-4 h-4 text-emerald-400" />
-                  <span className="font-medium">API Health Status</span>
-                </button>
-              )}
-
-              {onOpenGoogleServices && (
-                <button
-                  onClick={() => { onOpenGoogleServices(); setIsToolsOpen(false); }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer ${
-                    isDark ? "hover:bg-zinc-800 text-zinc-300" : "hover:bg-slate-100 text-slate-700"
-                  }`}
-                >
-                  <Sparkles className="w-4 h-4 text-blue-400" />
-                  <span className="font-medium">Google Studio & Workspace</span>
-                </button>
-              )}
-
-              {onOpenThemeSelector && (
-                <button
-                  onClick={() => { onOpenThemeSelector(); setIsToolsOpen(false); }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer ${
-                    isDark ? "hover:bg-zinc-800 text-zinc-300" : "hover:bg-slate-100 text-slate-700"
-                  }`}
-                >
-                  <Palette className="w-4 h-4 text-purple-400" />
-                  <span className="font-medium">Theme Customizer</span>
-                </button>
-              )}
-
-              {onOpenCalendar && (
-                <button
-                  onClick={() => { onOpenCalendar(); setIsToolsOpen(false); }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer ${
-                    isDark ? "hover:bg-zinc-800 text-zinc-300" : "hover:bg-slate-100 text-slate-700"
-                  }`}
-                >
-                  <Calendar className="w-4 h-4 text-purple-400" />
-                  <span className="font-medium">Google Calendar & Scheduler</span>
-                </button>
-              )}
-
-              {setIsMathPlotterOpen && (
-                <button
-                  onClick={() => { setIsMathPlotterOpen(true); setIsToolsOpen(false); }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer ${
-                    isDark ? "hover:bg-zinc-800 text-zinc-300" : "hover:bg-slate-100 text-slate-700"
-                  }`}
-                >
-                  <Calculator className="w-4 h-4 text-indigo-400" />
-                  <span className="font-medium">Math Functions Plotter</span>
-                </button>
-              )}
-
-              {onOpenMusicStudio && (
-                <button
-                  onClick={() => { onOpenMusicStudio(); setIsToolsOpen(false); }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer ${
-                    isDark ? "hover:bg-zinc-800 text-zinc-300" : "hover:bg-slate-100 text-slate-700"
-                  }`}
-                >
-                  <Music className="w-4 h-4 text-violet-400" />
-                  <span className="font-medium">Piano & Drum Studio</span>
-                  <span className="ml-auto text-[9px] px-1 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold">New</span>
-                </button>
-              )}
-
-              {handleUploadToDrive && (
-                <button
-                  onClick={() => { handleUploadToDrive(); setIsToolsOpen(false); }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer ${
-                    isDark ? "hover:bg-zinc-800 text-zinc-300" : "hover:bg-slate-100 text-slate-700"
-                  }`}
-                >
-                  <Upload className="w-4 h-4 text-sky-400" />
-                  <span className="font-medium">Upload to Google Drive</span>
-                </button>
-              )}
-
-              {setShowSlidersBar && (
-                <button
-                  onClick={() => { setShowSlidersBar(prev => !prev); setIsToolsOpen(false); }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer ${
-                    isDark ? "hover:bg-zinc-800 text-zinc-300" : "hover:bg-slate-100 text-slate-700"
-                  }`}
-                >
-                  <Sliders className="w-4 h-4 text-amber-400" />
-                  <span className="font-medium">Layout Sliders Bar</span>
-                </button>
-              )}
-
-              {setIsShortcutsHelpOpen && (
-                <button
-                  onClick={() => { setIsShortcutsHelpOpen(true); setIsToolsOpen(false); }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer ${
-                    isDark ? "hover:bg-zinc-800 text-zinc-300" : "hover:bg-slate-100 text-slate-700"
-                  }`}
-                >
-                  <HelpCircle className="w-4 h-4 text-zinc-400" />
-                  <span className="font-medium">Shortcuts & Help</span>
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* SYSTEM HEALTH / ERROR MONITOR */}
+        {/* 13. SYSTEM HEALTH & ERROR MONITOR */}
         {setIsErrorLogCenterOpen && (
           <button
             onClick={() => setIsErrorLogCenterOpen(true)}
-            className={`p-1.5 rounded-lg relative font-medium transition-colors cursor-pointer border ${
+            className={`p-1.5 rounded-lg relative font-medium transition-colors cursor-pointer border shrink-0 ${
               unresolvedErrorCount > 0
                 ? "text-rose-400 border-rose-500/40 bg-rose-500/10"
                 : isDark
@@ -408,10 +409,10 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           </button>
         )}
 
-        {/* DARK / LIGHT MODE TOGGLE */}
+        {/* 14. DARK / LIGHT MODE TOGGLE */}
         <button
           onClick={() => setTheme(prev => prev === "light" ? "dark" : "light")}
-          className={`p-1.5 rounded-lg font-medium flex items-center justify-center transition-colors cursor-pointer border ${
+          className={`p-1.5 rounded-lg font-medium flex items-center justify-center transition-colors cursor-pointer border shrink-0 ${
             isDark
               ? "border-zinc-800 text-amber-400 hover:bg-zinc-800/80"
               : "border-slate-200 text-indigo-600 hover:bg-slate-100"
@@ -421,10 +422,10 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
         </button>
 
-        {/* GUEST MODE BADGE */}
+        {/* 15. GUEST MODE BADGE */}
         {isGuest && (
           <div 
-            className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold hidden sm:flex items-center gap-1 ${
+            className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold hidden sm:flex items-center gap-1 shrink-0 ${
               isDark 
                 ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"
                 : "text-emerald-700 bg-emerald-50 border border-emerald-200"
@@ -436,11 +437,11 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           </div>
         )}
 
-        {/* EXIT WORKSPACE / RETURN TO LANDING */}
+        {/* 16. EXIT WORKSPACE */}
         {onExitWorkspace && (
           <button
             onClick={onExitWorkspace}
-            className={`px-2 py-1 rounded-lg font-medium flex items-center gap-1 transition-colors cursor-pointer text-xs border ${
+            className={`px-2 py-1 rounded-lg font-medium flex items-center gap-1 transition-colors cursor-pointer text-xs border shrink-0 ${
               isDark
                 ? "border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800/80"
                 : "border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100"

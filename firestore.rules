@@ -10,9 +10,9 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Health check endpoint for Firebase connection validation
+    // Health check endpoint for Firebase connection validation (BUG-P2-017)
     match /test/connection {
-      allow read: if true;
+      allow read: if isAuthenticated();
     }
 
     // Workspaces collection - strictly isolated per user UID
@@ -25,9 +25,14 @@ service cloud.firestore {
       allow read, write: if isOwner(userId);
     }
 
-    // Agent audit logs collection - authenticated users can create and read their own audit logs
+    // Agent audit logs collection - authenticated users can create and read their own audit logs (BUG-P2-018)
     match /agent_audit_logs/{logId} {
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() &&
+                    request.resource.data.userId == request.auth.uid &&
+                    request.resource.data.action is string &&
+                    request.resource.data.action.size() <= 100 &&
+                    request.resource.data.timestamp is string &&
+                    request.resource.data.timestamp.size() <= 50;
       allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
       allow update, delete: if false;
     }

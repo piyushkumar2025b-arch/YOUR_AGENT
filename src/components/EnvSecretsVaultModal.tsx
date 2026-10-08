@@ -70,7 +70,7 @@ export const EnvSecretsVaultModal: React.FC<EnvSecretsVaultModalProps> = ({
       files.find(f => f.path === ".env.local") ||
       files.find(f => f.path === ".env.example");
 
-    const content = envFile?.content || `# RemixStudio Environment Secrets\nVITE_APP_NAME="RemixStudio AI"\nPORT=3000\nDATABASE_URL="postgres://user:password@localhost:5432/main_db"\nJWT_SECRET="e9b21a8d05fc37bc210398f4"\nAPI_KEY="sk_live_sec_991823746"\n`;
+    const content = envFile?.content || `# RemixStudio Environment Secrets\nVITE_APP_NAME="RemixStudio AI"\nPORT=3000\nDATABASE_URL="postgres://user:password@localhost:5432/main_db"\nJWT_SECRET="your-development-jwt-secret-placeholder"\nAPI_KEY="your-api-key-placeholder"\n`;
     setRawText(content);
     parseEnvContent(content);
   }, [isOpen, files]);

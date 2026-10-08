@@ -1,5 +1,3 @@
-import { fetchWithAuth } from "../utils/apiAuth";
-
 // Dynamic OpenRouter Model Cache and Fallback Provider
 let cachedFreeModels: string[] = [];
 let lastFetchTime = 0;
@@ -34,9 +32,19 @@ export async function getActiveFreeModels(userAuthHeader?: string): Promise<stri
       ? userAuthHeader.replace("Bearer ", "").trim()
       : undefined;
 
-    const res = await fetchWithAuth("/api/openrouter/models", {
+    const headers: Record<string, string> = {
+      "HTTP-Referer": "https://ai.studio/build",
+      "X-Title": "OpenRouter Model Provider"
+    };
+    if (userKey) {
+      headers["Authorization"] = `Bearer ${userKey}`;
+    }
+
+    const res = await fetch("https://openrouter.ai/api/v1/models", {
+      method: "GET",
+      headers,
       signal: controller.signal
-    }, userKey);
+    });
 
     clearTimeout(timeout);
 

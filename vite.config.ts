@@ -1,11 +1,42 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import {defineConfig, Plugin} from 'vite';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const fallbackFirebaseConfigPlugin = (): Plugin => ({
+  name: 'fallback-firebase-config',
+  resolveId(id) {
+    if (id.includes('firebase-applet-config.json')) {
+      return path.resolve(__dirname, 'firebase-applet-config.json');
+    }
+    return null;
+  },
+  load(id) {
+    if (id.endsWith('firebase-applet-config.json')) {
+      if (fs.existsSync(id)) {
+        return fs.readFileSync(id, 'utf-8');
+      }
+      return JSON.stringify({
+        projectId: process.env.VITE_FIREBASE_PROJECT_ID || "ais-dev-nylhsones3edm5kt4mnzfl",
+        appId: process.env.VITE_FIREBASE_APP_ID || "1:272225439471:web:3395013145614775a812",
+        storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "ais-dev-nylhsones3edm5kt4mnzfl.appspot.com",
+        apiKey: process.env.VITE_FIREBASE_API_KEY || "AIzaSyPlaceholderKeyForViteDevEnvironment",
+        authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "ais-dev-nylhsones3edm5kt4mnzfl.firebaseapp.com",
+        messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "272225439471",
+        firestoreDatabaseId: process.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || "(default)"
+      });
+    }
+    return null;
+  }
+});
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [fallbackFirebaseConfigPlugin(), react(), tailwindcss()],
     optimizeDeps: {
       include: [
         'firebase/app',

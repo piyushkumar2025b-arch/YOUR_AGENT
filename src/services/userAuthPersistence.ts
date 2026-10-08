@@ -17,9 +17,29 @@ const BACKUP_USERS_FILE = path.join(process.env.HOME || "/tmp", ".app_auth_users
 class UserPersistenceStore {
   private users: Map<string, UserRecord> = new Map();
   private initialized: boolean = false;
+  private lastMtime: number = 0;
 
   constructor() {
     this.init();
+  }
+
+  private reloadIfChanged(): void {
+    try {
+      if (fs.existsSync(PRIMARY_USERS_FILE)) {
+        const stats = fs.statSync(PRIMARY_USERS_FILE);
+        if (stats.mtimeMs > this.lastMtime) {
+          const raw = JSON.parse(fs.readFileSync(PRIMARY_USERS_FILE, "utf8"));
+          if (raw && typeof raw === "object") {
+            for (const [k, v] of Object.entries(raw)) {
+              if (v && typeof v === "object" && (v as UserRecord).email) {
+                this.users.set(k.toLowerCase(), v as UserRecord);
+              }
+            }
+            this.lastMtime = stats.mtimeMs;
+          }
+        }
+      }
+    } catch {}
   }
 
   private init() {
@@ -29,6 +49,8 @@ class UserPersistenceStore {
     // Load from primary path
     try {
       if (fs.existsSync(PRIMARY_USERS_FILE)) {
+        const stats = fs.statSync(PRIMARY_USERS_FILE);
+        this.lastMtime = stats.mtimeMs;
         const raw = JSON.parse(fs.readFileSync(PRIMARY_USERS_FILE, "utf8"));
         for (const [k, v] of Object.entries(raw)) {
           if (v && typeof v === "object" && (v as UserRecord).email) {
@@ -58,10 +80,12 @@ class UserPersistenceStore {
   }
 
   public get(email: string): UserRecord | undefined {
+    this.reloadIfChanged();
     return this.users.get(email.toLowerCase().trim());
   }
 
   public getById(id: string): UserRecord | undefined {
+    this.reloadIfChanged();
     for (const u of this.users.values()) {
       if (u.id === id) return u;
     }
@@ -69,6 +93,7 @@ class UserPersistenceStore {
   }
 
   public getAll(): Record<string, UserRecord> {
+    this.reloadIfChanged();
     const res: Record<string, UserRecord> = Object.create(null);
     for (const [k, v] of this.users.entries()) {
       res[k] = v;
@@ -77,6 +102,7 @@ class UserPersistenceStore {
   }
 
   public save(user: UserRecord): void {
+    this.reloadIfChanged();
     const key = user.email.toLowerCase().trim();
     this.users.set(key, user);
     this.persist();
@@ -86,18 +112,29 @@ class UserPersistenceStore {
     const data = this.getAll();
     const json = JSON.stringify(data, null, 2);
 
+    // Atomic write to primary file
     try {
-      fs.mkdirSync(path.dirname(PRIMARY_USERS_FILE), { recursive: true });
-      fs.writeFileSync(PRIMARY_USERS_FILE, json, { encoding: "utf8", mode: 0o600 });
+      const primaryDir = path.dirname(PRIMARY_USERS_FILE);
+      fs.mkdirSync(primaryDir, { recursive: true });
+      const tempPrimary = `${PRIMARY_USERS_FILE}.${process.pid}.${Date.now()}.tmp`;
+      fs.writeFileSync(tempPrimary, json, { encoding: "utf8", mode: 0o600 });
+      fs.renameSync(tempPrimary, PRIMARY_USERS_FILE);
+      try {
+        this.lastMtime = fs.statSync(PRIMARY_USERS_FILE).mtimeMs;
+      } catch {}
     } catch (e) {
-      console.error("[UserPersistence] Failed to write primary file:", e);
+      console.error("[UserPersistence] Failed to write primary file atomically:", e);
     }
 
+    // Atomic write to backup file
     try {
-      fs.mkdirSync(path.dirname(BACKUP_USERS_FILE), { recursive: true });
-      fs.writeFileSync(BACKUP_USERS_FILE, json, { encoding: "utf8", mode: 0o600 });
+      const backupDir = path.dirname(BACKUP_USERS_FILE);
+      fs.mkdirSync(backupDir, { recursive: true });
+      const tempBackup = `${BACKUP_USERS_FILE}.${process.pid}.${Date.now()}.tmp`;
+      fs.writeFileSync(tempBackup, json, { encoding: "utf8", mode: 0o600 });
+      fs.renameSync(tempBackup, BACKUP_USERS_FILE);
     } catch (e) {
-      console.error("[UserPersistence] Failed to write backup file:", e);
+      console.error("[UserPersistence] Failed to write backup file atomically:", e);
     }
   }
 }

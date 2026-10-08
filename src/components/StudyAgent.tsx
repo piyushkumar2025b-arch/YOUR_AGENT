@@ -1470,6 +1470,7 @@ ${docExcerpt}
               srcDoc={previewingHtmlNotes}
               className="w-full flex-1 border-0"
               title="HTML Cheatsheet Preview"
+              sandbox="allow-scripts allow-modals allow-forms"
             />
           </div>
         </div>

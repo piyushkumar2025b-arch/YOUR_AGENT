@@ -150,7 +150,27 @@ function translateCronToEnglish(cron: string): string {
   return desc;
 }
 
-// Compute next 5 forecast trigger dates
+// Helper to match a single cron field pattern against a numeric value (BUG-P3-037)
+function matchCronPart(pattern: string, val: number): boolean {
+  if (pattern === "*") return true;
+  if (pattern.startsWith("*/")) {
+    const step = parseInt(pattern.slice(2), 10);
+    return !isNaN(step) && step > 0 && val % step === 0;
+  }
+  if (pattern.includes(",")) {
+    return pattern.split(",").some(p => matchCronPart(p.trim(), val));
+  }
+  if (pattern.includes("-")) {
+    const [startStr, endStr] = pattern.split("-");
+    const start = parseInt(startStr, 10);
+    const end = parseInt(endStr, 10);
+    return !isNaN(start) && !isNaN(end) && val >= start && val <= end;
+  }
+  const exact = parseInt(pattern, 10);
+  return !isNaN(exact) && exact === val;
+}
+
+// Compute next forecast trigger dates in UTC with support for ranges, lists, steps, and standard DOM/DOW OR semantics (BUG-016 & BUG-017)
 function calculateNextRuns(cron: string, count: number = 5): Date[] {
   const dates: Date[] = [];
   const parts = cron.trim().split(/\s+/);
@@ -158,23 +178,28 @@ function calculateNextRuns(cron: string, count: number = 5): Date[] {
 
   const now = new Date();
   let candidate = new Date(now.getTime() + 60000);
-  candidate.setSeconds(0, 0);
+  candidate.setUTCSeconds(0, 0);
 
-  // Simplified next-date finder
+  // Next-date finder with standard cron expression matching in UTC
   for (let i = 0; i < 2000 && dates.length < count; i++) {
-    const min = candidate.getMinutes();
-    const hour = candidate.getHours();
-    const dom = candidate.getDate();
-    const mon = candidate.getMonth() + 1;
-    const dow = candidate.getDay();
+    const min = candidate.getUTCMinutes();
+    const hour = candidate.getUTCHours();
+    const dom = candidate.getUTCDate();
+    const mon = candidate.getUTCMonth() + 1;
+    const dow = candidate.getUTCDay();
 
-    const matchMin = parts[0] === "*" || (parts[0].startsWith("*/") && min % parseInt(parts[0].replace("*/", ""), 10) === 0) || parts[0] === String(min);
-    const matchHour = parts[1] === "*" || (parts[1].startsWith("*/") && hour % parseInt(parts[1].replace("*/", ""), 10) === 0) || parts[1] === String(hour);
-    const matchDom = parts[2] === "*" || parts[2] === String(dom);
-    const matchMon = parts[3] === "*" || parts[3] === String(mon);
-    const matchDow = parts[4] === "*" || parts[4] === String(dow) || (parts[4] === "1-5" && dow >= 1 && dow <= 5);
+    const matchMin = matchCronPart(parts[0], min);
+    const matchHour = matchCronPart(parts[1], hour);
+    const matchDom = matchCronPart(parts[2], dom);
+    const matchMon = matchCronPart(parts[3], mon);
+    const matchDow = matchCronPart(parts[4], dow);
 
-    if (matchMin && matchHour && matchDom && matchMon && matchDow) {
+    // BUG-016: Standard cron OR semantics when both DOM and DOW are specified
+    const domRestricted = parts[2] !== "*";
+    const dowRestricted = parts[4] !== "*";
+    const dayMatches = domRestricted && dowRestricted ? (matchDom || matchDow) : (matchDom && matchDow);
+
+    if (matchMin && matchHour && dayMatches && matchMon) {
       dates.push(new Date(candidate.getTime()));
     }
     candidate = new Date(candidate.getTime() + 60000);
@@ -243,6 +268,83 @@ export const CronSchedulerStudioAgent: React.FC<CronSchedulerStudioAgentProps> =
     return calculateNextRuns(cronInput, 6);
   }, [cronInput]);
 
+  // Isolated Web Worker for scheduled script tasks (P0-03)
+  const executeScheduledScriptIsolated = async (scriptCode: string, timeoutMs = 5000): Promise<{ result: unknown; output: string[] }> => {
+    if (typeof scriptCode !== "string") throw new Error("Script must be a string.");
+    if (scriptCode.length > 100000) throw new Error("Scheduled script exceeds the 100KB limit.");
+
+    return await new Promise((resolve, reject) => {
+      let finished = false;
+      const workerSource = `
+        "use strict";
+        self.fetch = undefined;
+        self.XMLHttpRequest = undefined;
+        self.WebSocket = undefined;
+        self.EventSource = undefined;
+        self.importScripts = undefined;
+
+        self.onmessage = function(event) {
+          try {
+            const output = [];
+            const safeConsole = {
+              log: function(...args) {
+                output.push(args.map(v => {
+                  try { return typeof v === "string" ? v : JSON.stringify(v); } catch { return String(v); }
+                }).join(" "));
+              },
+              warn: function(...args) { output.push("WARN: " + args.map(String).join(" ")); },
+              error: function(...args) { output.push("ERROR: " + args.map(String).join(" ")); }
+            };
+
+            const fn = new Function("console", "fetch", "XMLHttpRequest", "WebSocket", "EventSource", "importScripts", event.data.code);
+            const result = fn(safeConsole, undefined, undefined, undefined, undefined, undefined);
+            self.postMessage({ ok: true, result, output });
+          } catch (err) {
+            self.postMessage({ ok: false, error: err instanceof Error ? err.message : String(err) });
+          }
+        };
+      `;
+
+      const blob = new Blob([workerSource], { type: "application/javascript" });
+      const workerUrl = URL.createObjectURL(blob);
+      const worker = new Worker(workerUrl);
+
+      const cleanup = () => {
+        worker.terminate();
+        URL.revokeObjectURL(workerUrl);
+      };
+
+      const timer = window.setTimeout(() => {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        reject(new Error("Scheduled script timed out."));
+      }, timeoutMs);
+
+      worker.onmessage = (event) => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        cleanup();
+        if (event.data?.ok) {
+          resolve({ result: event.data.result, output: event.data.output || [] });
+        } else {
+          reject(new Error(event.data?.error || "Script execution failed."));
+        }
+      };
+
+      worker.onerror = (event) => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        cleanup();
+        reject(new Error(event.message || "Worker execution failed."));
+      };
+
+      worker.postMessage({ code: scriptCode });
+    });
+  };
+
   // Execute Real Task Run
   const handleRunTaskNow = async (task: ScheduledTask) => {
     setTasks(prev => prev.map(t => (t.id === task.id ? { ...t, status: "running" } : t)));
@@ -262,10 +364,9 @@ export const CronSchedulerStudioAgent: React.FC<CronSchedulerStudioAgentProps> =
         message = `HTTP ${res.status} ${res.statusText} (${durationMs}ms) — ${summary}`;
         status = res.ok ? "success" : "failed";
       } else if (task.taskType === "script" && task.scriptCode) {
-        const func = new Function(task.scriptCode);
-        const result = func();
+        const execution = await executeScheduledScriptIsolated(task.scriptCode, 5000);
         const durationMs = Math.round(performance.now() - startTime);
-        message = `Script evaluated successfully (${durationMs}ms) — Output: ${JSON.stringify(result) || "undefined"}`;
+        message = `Script evaluated successfully (${durationMs}ms) — Output: ${JSON.stringify(execution.result) || "undefined"}`;
       } else {
         const res = await fetch("/api/health");
         const data = await res.json().catch(() => ({ status: "healthy" }));
@@ -357,11 +458,24 @@ export const CronSchedulerStudioAgent: React.FC<CronSchedulerStudioAgentProps> =
     lines.push(`}`);
     lines.push(``);
 
-    // Handlers
+    // Handlers (BUG-019: Real task implementation with AbortController and endpoint fetching)
     tasks.forEach(t => {
       lines.push(`async function ${t.handlerName}(): Promise<void> {`);
       lines.push(`  // ${t.description}`);
-      lines.push(`  console.log("Executing ${t.handlerName}...");`);
+      if (t.taskType === "http" && t.endpoint) {
+        lines.push(`  const controller = new AbortController();`);
+        lines.push(`  const timeout = setTimeout(() => controller.abort(), 10000);`);
+        lines.push(`  try {`);
+        lines.push(`    const baseUrl = process.env.APP_URL || "http://127.0.0.1:3000";`);
+        lines.push(`    const res = await fetch(\`\${baseUrl}${t.endpoint}\`, { signal: controller.signal });`);
+        lines.push(`    if (!res.ok) throw new Error(\`HTTP \${res.status}: \${res.statusText}\`);`);
+        lines.push(`    console.log("[CRON] Task ${t.name} executed successfully.");`);
+        lines.push(`  } finally {`);
+        lines.push(`    clearTimeout(timeout);`);
+        lines.push(`  }`);
+      } else {
+        lines.push(`  console.log("[CRON] Executed task ${t.name} successfully.");`);
+      }
       lines.push(`}`);
       lines.push(``);
     });
@@ -396,12 +510,12 @@ export const CronSchedulerStudioAgent: React.FC<CronSchedulerStudioAgentProps> =
             <div className="flex items-center gap-2">
               <h1 className="text-base font-bold tracking-tight">Cron & Task Scheduler Studio</h1>
               <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                Scheduler Engine
+                Scheduler Architect & Simulation Sandbox
               </span>
-              <span className="text-xs text-slate-400">({tasks.length} Active Jobs)</span>
+              <span className="text-xs text-slate-400">({tasks.length} Configured Jobs)</span>
             </div>
             <p className="text-xs text-slate-400 hidden sm:block">
-              Interactive cron expression architect, natural English translator, schedule forecaster & runner sandbox
+              Interactive cron expression architect, schedule forecaster & code exporter for backend node-cron execution
             </p>
           </div>
         </div>

@@ -14,21 +14,24 @@ import {
   orderBy, 
   limit, 
   serverTimestamp,
-  getDocFromServer
+  getDocFromServer,
+  memoryLocalCache
 } from "firebase/firestore";
 import { getAuth, signInAnonymously, onAuthStateChanged, User } from "firebase/auth";
 import rawFirebaseConfig from "../../firebase-applet-config.json";
 
 // Read from injected Vite environment variables if defined, with fallback to platform config
-const activeFirebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || rawFirebaseConfig.apiKey,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || rawFirebaseConfig.authDomain,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || rawFirebaseConfig.projectId,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || rawFirebaseConfig.storageBucket,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || rawFirebaseConfig.messagingSenderId,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || rawFirebaseConfig.appId,
-  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || rawFirebaseConfig.firestoreDatabaseId
+export const activeFirebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || rawFirebaseConfig?.apiKey || "AIzaSyBOOS3gNuBL-nUkR-fa686coyvq4d7BYk8",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || rawFirebaseConfig?.authDomain || "gen-lang-client-0001027508.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || rawFirebaseConfig?.projectId || "gen-lang-client-0001027508",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || rawFirebaseConfig?.storageBucket || "gen-lang-client-0001027508.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || rawFirebaseConfig?.messagingSenderId || "505049728186",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || rawFirebaseConfig?.appId || "1:505049728186:web:a0336f75523628aaacee83",
+  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || rawFirebaseConfig?.firestoreDatabaseId || "(default)"
 };
+
+export const firebaseConfig = activeFirebaseConfig;
 
 // Initialize Firebase App
 export const app = getApps().length > 0 ? getApp() : initializeApp(activeFirebaseConfig);
@@ -41,6 +44,7 @@ const targetDbId = activeFirebaseConfig.firestoreDatabaseId || undefined;
 try {
   firestoreInstance = initializeFirestore(app, {
     experimentalForceLongPolling: true,
+    localCache: memoryLocalCache(),
   }, targetDbId);
 } catch (initErr) {
   try {
@@ -56,18 +60,18 @@ try {
 
 export const db: Firestore = (firestoreInstance || (getApps().length > 0 ? getFirestore(app) : null)) as Firestore;
 
-// Connection validator per SKILL.md critical constraint
+// Connection validator per SKILL.md critical constraint (BUG-P2-016)
 export async function validateFirestoreConnection(): Promise<boolean> {
   try {
     await getDocFromServer(doc(db, "test", "connection"));
     return true;
   } catch (error: any) {
-    if (error instanceof Error && error.message.includes("the client is offline")) {
-      console.warn("Firestore client operating in offline mode.");
-      return false;
+    // A 'not-found' error indicates the Firestore backend was successfully reached
+    if (error?.code === "not-found") {
+      return true;
     }
-    // Document missing or server response indicates server is reachable
-    return true;
+    console.warn("Firestore connection check failed:", error?.message || error);
+    return false;
   }
 }
 

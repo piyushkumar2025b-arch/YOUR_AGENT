@@ -76,6 +76,17 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({
   const [audioError, setAudioError] = useState<string | null>(null);
 
   const localAudioRef = useRef<HTMLAudioElement | null>(null);
+  const createdObjectUrlsRef = useRef<string[]>([]);
+
+  // Cleanup object URLs on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      createdObjectUrlsRef.current.forEach((url) => {
+        try { URL.revokeObjectURL(url); } catch {}
+      });
+      createdObjectUrlsRef.current = [];
+    };
+  }, []);
 
   const tracks = isControlled ? (globalTracks || TOP_REAL_CHARTS) : localTracks;
   const currentIndex = isControlled ? (globalCurrentIndex ?? 0) : localCurrentIndex;
@@ -299,6 +310,7 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({
 
     const uploadedTracks: Track[] = Array.from(files).map((file, idx) => {
       const objectUrl = URL.createObjectURL(file);
+      createdObjectUrlsRef.current.push(objectUrl);
       const title = file.name.replace(/\.[^/.]+$/, "");
       return {
         id: `local-upload-${Date.now()}-${idx}`,

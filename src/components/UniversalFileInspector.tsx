@@ -225,7 +225,7 @@ export const UniversalFileInspector: React.FC<UniversalFileInspectorProps> = ({
               srcDoc={file.content}
               title="HTML Live Preview"
               className="w-full h-full rounded-xl border border-zinc-800 bg-white"
-              sandbox="allow-scripts allow-modals allow-same-origin allow-forms"
+              sandbox="allow-scripts allow-modals allow-forms"
             />
           </div>
         )}

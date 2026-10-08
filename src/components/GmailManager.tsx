@@ -172,8 +172,14 @@ export const GmailManager: React.FC<GmailManagerProps> = ({
         await loadRealEmails(res.accessToken, searchQuery);
       }
     } catch (err: any) {
-      console.error("Sign in failed:", err);
       const errMsg = err?.message || String(err);
+      if (errMsg.includes("api-key-not-valid") || errMsg.includes("synchronizing")) {
+        console.warn("Sign in pending API key synchronization:", errMsg);
+        setFetchError("Google Authentication API key is synchronizing. Please try again or paste a Google OAuth Access Token directly below.");
+        setShowManualToken(true);
+      } else {
+        console.error("Sign in failed:", err);
+      }
       if (errMsg.includes("403") || errMsg.includes("access_denied") || errMsg.includes("verification process")) {
         setFetchError("Google OAuth 403: The Google Cloud app is currently in 'Testing Mode'. To allow any Google user, Publish the App in Google Cloud Console, or paste a Google Access Token directly below.");
         setShowGcpGuide(true);

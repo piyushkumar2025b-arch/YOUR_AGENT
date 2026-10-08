@@ -3,6 +3,9 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import crypto from "crypto";
+import { promisify } from "util";
+
+const execFileAsync = promisify(execFile);
 
 export interface SandboxExecutionOptions {
   files?: Array<{ path: string; content: string }>;
@@ -94,27 +97,40 @@ export async function runIsolatedExecution(
 
     // Ensure permissions for nobody user on sandbox files
     try {
-      execFile("chown", ["-R", "nobody:nogroup", sandboxDir]);
-    } catch {}
+      await execFileAsync("chown", ["-R", "nobody:nogroup", sandboxDir]);
+    } catch (e: any) {
+      // If chown is unavailable or unpermitted, mark unisolated
+      return {
+        stdout: "",
+        stderr: `Sandbox permissions failure: ${e.message}`,
+        exitCode: 1,
+        timedOut: false,
+        durationMs: Date.now() - startTime,
+        error: e.message,
+        sandboxType: "Linux Namespaces Container",
+        isolated: false
+      };
+    }
 
-    // Construct wrapper script with containment
+    // Construct wrapper script with strict containment
     const escapedArgs = binArgs
       .map((a) => `'${a.replace(/'/g, "'\\''")}'`)
       .join(" ");
 
     const netNamespaceFlag = options.allowNetwork ? "" : "-n";
 
-    // Bash wrapper script executed under unshare
+    // Bash wrapper script executed under unshare (fails closed on mount failure)
     const wrapScript = `
-set -e
+set -eu
 export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+
 # Mount dummy passwd with isolated entry only
-chmod 444 "${dummyPasswd}" 2>/dev/null || true
-mount --bind "${dummyPasswd}" /etc/passwd 2>/dev/null || true
+chmod 444 "${dummyPasswd}"
+mount --bind "${dummyPasswd}" /etc/passwd
 
 # Mask app code and secrets from host
-mount --bind "${emptyMask}" "${appDir}" 2>/dev/null || true
-mount -t tmpfs tmpfs /root 2>/dev/null || true
+mount --bind "${emptyMask}" "${appDir}"
+mount -t tmpfs tmpfs /root
 
 # Enforce resource limits
 ulimit -t 10 2>/dev/null || true
@@ -142,6 +158,7 @@ exec runuser -u nobody -- ${binCmd} ${escapedArgs}
         {
           timeout: timeoutMs,
           maxBuffer,
+          detached: true,
           env: {
             PATH: "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
             LANG: "en_US.UTF-8",
@@ -149,21 +166,31 @@ exec runuser -u nobody -- ${binCmd} ${escapedArgs}
             HOME: sandboxDir,
             TMPDIR: sandboxDir,
           },
-        },
+        } as any,
         (err: any, stdout: string, stderr: string) => {
           const durationMs = Date.now() - startTime;
-          const exitCode = err ? err.code ?? (timedOut ? 124 : 1) : 0;
+          const exitCode = err ? (typeof err.code === "number" ? err.code : (timedOut ? 124 : 1)) : 0;
           const isTimeout = timedOut || (err && (err.killed || err.signal === "SIGTERM" || durationMs >= timeoutMs - 50));
+          // BUG-006 & BUG-013: Fail-closed isolation verification.
+          // Any container launch failure, unshare, runuser, mount, or namespace fault marks isolated: false.
+          const isLaunchFailure = Boolean(
+            (err && (err.code === "ENOENT" || err.code === "EACCES" || err.code === "EPERM")) ||
+            exitCode === 126 ||
+            exitCode === 127 ||
+            (stderr && (stderr.includes("unshare: ") || stderr.includes("runuser: ") || stderr.includes("mount: ") || stderr.includes("pivot_root") || stderr.includes("failed to exec"))) ||
+            !child.pid
+          );
+          const isIsolated = !isLaunchFailure;
 
           resolve({
             stdout: stdout || "",
             stderr: stderr || (isTimeout ? `Execution timed out after ${timeoutMs}ms.` : ""),
-            exitCode: typeof exitCode === "number" ? exitCode : 1,
+            exitCode: typeof exitCode === "number" ? exitCode : (err ? 1 : 0),
             timedOut: isTimeout,
             durationMs,
-            error: err && !isTimeout ? err.message : undefined,
+            error: isTimeout ? `Execution timed out after ${timeoutMs}ms.` : (err && typeof err.code === "number" ? undefined : err?.message),
             sandboxType: "Linux Namespaces Container (UID 65534, network disabled, host filesystem masked)",
-            isolated: true,
+            isolated: isIsolated,
           });
         }
       );
@@ -173,12 +200,16 @@ exec runuser -u nobody -- ${binCmd} ${escapedArgs}
         child.stdin.end();
       }
 
-      // Safeguard timer
+      // Safeguard timer killing process group
       const timer = setTimeout(() => {
         timedOut = true;
         try {
-          child.kill("SIGKILL");
-        } catch {}
+          if (child.pid) {
+            process.kill(-child.pid, "SIGKILL");
+          }
+        } catch {
+          try { child.kill("SIGKILL"); } catch {}
+        }
       }, timeoutMs);
 
       child.on("exit", () => clearTimeout(timer));
@@ -248,6 +279,15 @@ print(json.dumps(results))
   });
 
   try {
+    if (!result.isolated || result.exitCode !== 0) {
+      return {
+        networkIsolated: false,
+        filesystemIsolated: false,
+        nonRootUid: false,
+        details: `Sandbox diagnostic probe failed (exitCode=${result.exitCode}): ${result.stderr || result.error || "unisolated execution"}`
+      };
+    }
+
     const parsed = JSON.parse(result.stdout.trim());
     const nonRootUid = parsed.uid === 65534;
     const networkIsolated = parsed.net === false;
@@ -259,12 +299,12 @@ print(json.dumps(results))
       nonRootUid,
       details: `Sandbox verified: non-root UID=${parsed.uid}, outbound network blocked=${networkIsolated}, host filesystem masked=${filesystemIsolated}`,
     };
-  } catch {
+  } catch (error: any) {
     return {
-      networkIsolated: true,
-      filesystemIsolated: true,
-      nonRootUid: true,
-      details: "Diagnostic probe execution completed within kernel sandbox parameters",
+      networkIsolated: false,
+      filesystemIsolated: false,
+      nonRootUid: false,
+      details: `Sandbox diagnostic could not be verified: ${error?.message || "probe failure"}`,
     };
   }
 }

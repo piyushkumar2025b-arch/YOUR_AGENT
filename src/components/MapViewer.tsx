@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import L from "leaflet";
+import { getAuthToken, ensureSessionToken } from "../utils/apiAuth";
 
 const GOOGLE_API_KEY =
   process.env.GOOGLE_MAPS_PLATFORM_KEY ||
@@ -331,7 +332,10 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     if (onAddLog) onAddLog("map", `Generating AI travel route for: "${input}"...`);
 
     try {
-      const localToken = typeof window !== "undefined" ? (localStorage.getItem("app_auth_token") || "") : "";
+      let localToken = getAuthToken();
+      if (!localToken && !apiKey) {
+        localToken = await ensureSessionToken().catch(() => "");
+      }
       const authHeader = apiKey ? `Bearer ${apiKey}` : (localToken ? `Bearer ${localToken}` : "");
 
       const res = await fetch("/api/openrouter/chat", {

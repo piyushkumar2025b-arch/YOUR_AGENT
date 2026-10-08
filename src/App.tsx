@@ -94,7 +94,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { VirtualFile, Message, Model, AgentAction, WorkspaceTemplate, ExecutionStats } from "./types";
 import { templates } from "./templates";
 import { syncFilesToFirebase, loadFilesFromFirebase, syncMessagesToFirebase, loadMessagesFromFirebase, logActionToFirebase } from "./services/firebaseSyncService";
-import { AppNavigationTabsBar } from "./components/AppNavigationTabsBar";
+import { auth } from "./services/firebaseConfig";
 import { AiBrainSidebarPanel } from "./components/AiBrainSidebarPanel";
 import { AppTabViewsRouter } from "./components/AppTabViewsRouter";
 import { AppModalsContainer } from "./components/AppModalsContainer";
@@ -112,7 +112,7 @@ import { exportSingleFile, exportFolderZip, exportWorkspaceZip, exportWordDocume
 import { popularModels, deduplicateModels, getFileBadgeAndIcon } from "./utils/fileHelpers";
 import { highlightCode } from "./utils/syntaxHighlighter";
 import { TOP_REAL_CHARTS } from "./data/musicTracks";
-import { ensureSessionToken, getAuthHeaders } from "./utils/apiAuth";
+import { ensureSessionToken, getAuthHeaders, setAuthToken, getAuthToken } from "./utils/apiAuth";
 import { getOrFetchModels } from "./utils/modelsCache";
 import { safeLazy } from "./utils/lazyRetry";
 import { SystemSecurityShieldModal } from "./components/SystemSecurityShieldModal";
@@ -150,25 +150,11 @@ export default function App() {
   const [models, setModels] = useState<Model[]>(popularModels);
   const [modelSearch, setModelSearch] = useState<string>("");
   const [isLoadingModels, setIsLoadingModels] = useState<boolean>(false);
+  const [currentUserId, setCurrentUserId] = useState<string>("guest");
 
-  // Files & Workspace
-  const [files, setFiles] = useState<VirtualFile[]>(() => {
-    const cachedFiles = localStorage.getItem("agent_workspace_files");
-    if (cachedFiles) {
-      try { return JSON.parse(cachedFiles); } catch { }
-    }
-    return templates[0].files; // Default to Web template
-  });
-  const [selectedFilePath, setSelectedFilePath] = useState<string>(() => {
-    const cachedFiles = localStorage.getItem("agent_workspace_files");
-    if (cachedFiles) {
-      try {
-        const parsed = JSON.parse(cachedFiles);
-        if (parsed.length > 0) return parsed[0].path;
-      } catch { }
-    }
-    return "index.html";
-  });
+  // Files & Workspace - initialized to clean template; hydrated per-account after auth
+  const [files, setFiles] = useState<VirtualFile[]>(() => templates[0].files);
+  const [selectedFilePath, setSelectedFilePath] = useState<string>("index.html");
   const activeFile = files.find(f => f.path === selectedFilePath);
   const activeBadge = activeFile ? getFileBadgeAndIcon(activeFile.path) : null;
   const [activeTab, setActiveTab] = useState<"editor" | "preview" | "actions" | "gmail" | "music" | "music-studio" | "piano" | "drums" | "youtube" | "calculator" | "chat" | "photos" | "map" | "story" | "dictionary" | "gaming" | "settings" | "agents" | "skills" | "github" | "search" | "supabase" | "firebase" | "study" | "cp" | "share" | "trending-repos" | "weather" | "live-quiz" | "media-downloader" | "doc-previewer" | "photo-editor" | "jokes" | "api-hub" | "deep-research" | "code-analyzer" | "image-studio" | "voice-synth" | "translator" | "content-creator" | "currency-agent" | "qrcode-agent" | "wiki-agent" | "nasa-agent" | "ipgeo-agent" | "crypto-agent" | "mockdata-agent" | "animal-agent" | "opentrivia-agent" | "countries-agent" | "universities-agent" | "advice-agent" | "picsum-agent" | "books-agent" | "airquality-agent" | "calendar-agent" | "english-agent" | "news-agent">("editor");
@@ -240,17 +226,41 @@ export default function App() {
   const handleStudioLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        safeAlert("Selected image is too large. Please upload an image under 5MB.", "error");
+      if (file.size > 2 * 1024 * 1024) {
+        safeAlert("Selected image is too large. Please upload an image under 2MB.", "error");
         return;
       }
       const reader = new FileReader();
       reader.onload = (evt) => {
         const res = evt.target?.result as string;
         if (res) {
-          setStudioLogoPhoto(res);
-          localStorage.setItem("custom_studio_logo_photo", res);
-          addAgentAction("info", "Updated Dev Studio custom brand avatar photo.");
+          // Downscale to avatar dimensions (128x128) using canvas to prevent localStorage quota issues
+          const img = new Image();
+          img.onload = () => {
+            try {
+              const canvas = document.createElement("canvas");
+              const size = 128;
+              canvas.width = size;
+              canvas.height = size;
+              const ctx = canvas.getContext("2d");
+              if (ctx) {
+                ctx.drawImage(img, 0, 0, size, size);
+                const optimizedDataUrl = canvas.toDataURL("image/webp", 0.85);
+                setStudioLogoPhoto(optimizedDataUrl);
+                try {
+                  localStorage.setItem("custom_studio_logo_photo", optimizedDataUrl);
+                } catch {}
+                addAgentAction("info", "Updated Dev Studio custom brand avatar photo.");
+                return;
+              }
+            } catch {}
+            setStudioLogoPhoto(res);
+            try {
+              localStorage.setItem("custom_studio_logo_photo", res);
+            } catch {}
+            addAgentAction("info", "Updated Dev Studio custom brand avatar photo.");
+          };
+          img.src = res;
         }
       };
       reader.readAsDataURL(file);
@@ -361,37 +371,25 @@ export default function App() {
   const [aiDraftPrompt, setAiDraftPrompt] = useState<string>("");
   const [isDraftingAI, setIsDraftingAI] = useState<boolean>(false);
 
-  // Chat & Agent State
-  const [messages, setMessages] = useState<Message[]>(() => {
-    const cachedMessages = localStorage.getItem("agent_workspace_messages");
-    if (cachedMessages) {
-      try { return JSON.parse(cachedMessages); } catch { }
+  // Chat & Agent State - initialized cleanly; restored per-account after auth
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: "system-1",
+      role: "assistant",
+      content: "Hi! I am your AI Developer Agent. I can write and manage code in any language. Let me know what you want to build, edit, or debug. I will perform all workspace actions automatically!",
+      timestamp: new Date().toLocaleTimeString()
     }
-    return [
-      {
-        id: "system-1",
-        role: "assistant",
-        content: "Hi! I am your AI Developer Agent. I can write and manage code in any language. Let me know what you want to build, edit, or debug. I will perform all workspace actions automatically!",
-        timestamp: new Date().toLocaleTimeString()
-      }
-    ];
-  });
+  ]);
   const [inputPrompt, setInputPrompt] = useState<string>("");
   const [isAgentProcessing, setIsAgentProcessing] = useState<boolean>(false);
-  const [agentActions, setAgentActions] = useState<AgentAction[]>(() => {
-    const cachedActions = localStorage.getItem("agent_workspace_actions");
-    if (cachedActions) {
-      try { return JSON.parse(cachedActions); } catch { }
+  const [agentActions, setAgentActions] = useState<AgentAction[]>([
+    {
+      id: "init-action",
+      type: "info",
+      message: "Workspace initialized with template project.",
+      timestamp: new Date().toLocaleTimeString()
     }
-    return [
-      {
-        id: "init-action",
-        type: "info",
-        message: "Workspace initialized with template project.",
-        timestamp: new Date().toLocaleTimeString()
-      }
-    ];
-  });
+  ]);
 
   const addAgentAction = useCallback((type: "create" | "edit" | "delete" | "analyze" | "info" | "error" | "memory", message: string, path?: string) => {
     const newAction: AgentAction = {
@@ -422,9 +420,50 @@ export default function App() {
   const [workspaceTitle, setWorkspaceTitle] = useState<string>("My AI Developer Studio");
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState<boolean>(false);
   const [workspaceLoadingMsg, setWorkspaceLoadingMsg] = useState<string>("Initializing Multi-Agent Environment...");
-  const [currentAuthMode, setCurrentAuthMode] = useState<"google" | "github" | "guest">("guest");
+  const [currentAuthMode, setCurrentAuthMode] = useState<"google" | "github" | "guest" | "email">("guest");
 
-  const handleEnterWorkspace = (name: string, authType: "google" | "github" | "guest") => {
+  // BUG-AUTH-001 & BUG-P1-003: Recover active authenticated account session and scope storage per user
+  useEffect(() => {
+    fetch("/api/auth/me", { credentials: "include" })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (data?.authenticated && data?.token) {
+          setAuthToken(data.token);
+          const uid = data.user?.id || (data.isGuest ? "guest" : "user");
+          setCurrentUserId(uid);
+
+          // Restore scoped workspace files if present
+          try {
+            const userFiles = localStorage.getItem(`agent_workspace_files:${uid}`);
+            if (userFiles) {
+              const parsed = JSON.parse(userFiles);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setFiles(parsed);
+                setSelectedFilePath(parsed[0].path || "index.html");
+              }
+            }
+            const userMsgs = localStorage.getItem(`agent_workspace_messages:${uid}`);
+            if (userMsgs) {
+              const parsed = JSON.parse(userMsgs);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setMessages(parsed);
+              }
+            }
+          } catch {}
+
+          if (!data.isGuest && data.user?.email && data.user.email !== "guest@dev.local") {
+            const detectedMode = data.user?.id?.startsWith("usr_gh_") ? "github" : "email";
+            setCurrentAuthMode(detectedMode);
+            if (data.user.name) {
+              setWorkspaceTitle(data.user.name + "'s Dev Studio");
+            }
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleEnterWorkspace = (name: string, authType: "google" | "github" | "guest" | "email") => {
     const finalName = name.trim() || (authType === "guest" ? "Guest Dev Studio" : "My AI Developer Studio");
     setCurrentAuthMode(authType);
     setWorkspaceTitle(finalName);
@@ -446,6 +485,37 @@ export default function App() {
       setIsWorkspaceLoading(false);
       setHasEnteredWorkspace(true);
     }, 1800);
+  };
+
+  const handleExitWorkspace = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } catch {}
+    setAuthToken("");
+    try {
+      auth.signOut().catch(() => {});
+    } catch {}
+    // BUG-P1-003: Clean up account in-memory state on logout to prevent data leaking to next account
+    setCurrentUserId("guest");
+    setFiles(templates[0].files);
+    setSelectedFilePath("index.html");
+    setMessages([
+      {
+        id: "system-1",
+        role: "assistant",
+        content: "Hi! I am your AI Developer Agent. I can write and manage code in any language. Let me know what you want to build, edit, or debug. I will perform all workspace actions automatically!",
+        timestamp: new Date().toLocaleTimeString()
+      }
+    ]);
+    setAgentActions([
+      {
+        id: "init-action",
+        type: "info",
+        message: "Workspace initialized with template project.",
+        timestamp: new Date().toLocaleTimeString()
+      }
+    ]);
+    setHasEnteredWorkspace(false);
   };
 
   // Sidebar Controls & Modals
@@ -631,6 +701,11 @@ export default function App() {
         if (isMounted && cloudWorkspace && cloudWorkspace.files.length > 0) {
           setFiles(cloudWorkspace.files);
           if (cloudWorkspace.emptyFolders) setEmptyFolders(cloudWorkspace.emptyFolders);
+          // BUG-FB-004: Validate selectedFilePath exists in the restored cloud files
+          setSelectedFilePath(prev => {
+            const exists = cloudWorkspace.files.some(f => f.path === prev);
+            return exists ? prev : (cloudWorkspace.files[0]?.path || "src/App.tsx");
+          });
         }
         const cloudMessages = await loadMessagesFromFirebase();
         if (isMounted && cloudMessages && cloudMessages.length > 0) {
@@ -650,25 +725,30 @@ export default function App() {
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
-        localStorage.setItem("agent_workspace_files", safeStringify(files));
+        // BUG-003: Write exclusively to account-scoped key
+        localStorage.setItem(`agent_workspace_files:${currentUserId}`, safeStringify(files));
+        // Purge legacy unscoped key to prevent cross-account leakage
+        localStorage.removeItem("agent_workspace_files");
         // Non-blocking Firebase Cloud Sync (only after initial restore resolves)
         if (initialCloudLoadDone.current) {
-          syncFilesToFirebase(files, emptyFolders).catch(() => {});
+          syncFilesToFirebase(files, emptyFolders, currentUserId).catch(() => {});
         }
       } catch (err) {
         console.warn("Failed to save files to storage:", err);
       }
     }, 1200);
     return () => clearTimeout(timer);
-  }, [files, emptyFolders]);
+  }, [files, emptyFolders, currentUserId]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
-        localStorage.setItem("agent_workspace_messages", safeStringify(messages));
+        // BUG-003: Write exclusively to account-scoped key
+        localStorage.setItem(`agent_workspace_messages:${currentUserId}`, safeStringify(messages));
+        localStorage.removeItem("agent_workspace_messages");
         // Non-blocking Firebase Cloud Sync (only after initial restore resolves)
         if (initialCloudLoadDone.current) {
-          syncMessagesToFirebase(messages).catch(() => {});
+          syncMessagesToFirebase(messages, currentUserId).catch(() => {});
         }
       } catch (err) {
         console.warn("Failed to save messages to storage:", err);
@@ -676,22 +756,25 @@ export default function App() {
     }, 800);
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
     return () => clearTimeout(timer);
-  }, [messages]);
+  }, [messages, currentUserId]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
-        localStorage.setItem("agent_workspace_actions", safeStringify(agentActions));
+        // BUG-003: Write exclusively to account-scoped key
+        localStorage.setItem(`agent_workspace_actions:${currentUserId}`, safeStringify(agentActions));
+        localStorage.removeItem("agent_workspace_actions");
         if (agentActions.length > 0) {
-          const latest = agentActions[agentActions.length - 1];
+          // BUG-FB-005: agentActions is stored newest-first (index 0 is latest)
+          const latest = agentActions[0];
           logActionToFirebase({ type: latest.type, message: latest.message, path: latest.path }).catch(() => {});
         }
       } catch (err) {
         console.warn("Failed to save actions to storage:", err);
       }
-    }, 1000);
+    }, 1500);
     return () => clearTimeout(timer);
-  }, [agentActions]);
+  }, [agentActions, currentUserId]);
 
   const initialKeyLoadedRef = useRef<boolean>(false);
   useEffect(() => {
@@ -1731,6 +1814,11 @@ export default function App() {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const consecutiveAudioErrors = useRef(0);
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+
+  // Stable ref for track navigation to avoid stale closures in audio event handlers
+  const handleNextTrackRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     if (!audioRef.current) {
@@ -1742,14 +1830,15 @@ export default function App() {
     const handlePause = () => setIsMusicPlaying(false);
     let lastTime = 0;
     const handleTimeUpdate = () => {
-      if (activeTab === "music" && Math.abs(audio.currentTime - lastTime) >= 0.5) {
+      if (activeTabRef.current === "music" && Math.abs(audio.currentTime - lastTime) >= 0.5) {
         lastTime = audio.currentTime;
         setMusicCurrentTime(audio.currentTime);
       }
     };
     const handleDurationChange = () => setMusicDuration(audio.duration);
+    const handleCanPlay = () => { consecutiveAudioErrors.current = 0; };
     const handleEnded = () => {
-      handleNextTrack();
+      handleNextTrackRef.current();
     };
     const handleError = (e: Event) => {
       consecutiveAudioErrors.current += 1;
@@ -1761,13 +1850,13 @@ export default function App() {
       }
       console.warn("Audio element error encountered, auto-advancing to next track:", e);
       setTimeout(() => {
-        handleNextTrack();
+        handleNextTrackRef.current();
       }, 1200);
     };
 
     audio.addEventListener("play", handlePlay);
     audio.addEventListener("pause", handlePause);
-    audio.addEventListener("canplay", () => { consecutiveAudioErrors.current = 0; });
+    audio.addEventListener("canplay", handleCanPlay);
     audio.addEventListener("timeupdate", handleTimeUpdate);
     audio.addEventListener("durationchange", handleDurationChange);
     audio.addEventListener("ended", handleEnded);
@@ -1776,12 +1865,13 @@ export default function App() {
     return () => {
       audio.removeEventListener("play", handlePlay);
       audio.removeEventListener("pause", handlePause);
+      audio.removeEventListener("canplay", handleCanPlay);
       audio.removeEventListener("timeupdate", handleTimeUpdate);
       audio.removeEventListener("durationchange", handleDurationChange);
       audio.removeEventListener("ended", handleEnded);
       audio.removeEventListener("error", handleError);
     };
-  }, [musicTracks, currentTrackIndex]);
+  }, []);
 
   // Synchronize audio volume and mute state
   useEffect(() => {
@@ -1895,6 +1985,7 @@ export default function App() {
       audio.play().catch(e => console.log("Next track play deferred:", e));
     }
   };
+  handleNextTrackRef.current = handleNextTrack;
 
   const handlePrevTrack = () => {
     const list = musicTracks.length > 0 ? musicTracks : TOP_REAL_CHARTS;
@@ -2402,7 +2493,10 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
     setTerminalExitCode(null);
 
     try {
-      const localToken = localStorage.getItem("app_auth_token") || "";
+      let localToken = getAuthToken();
+      if (!localToken && !apiKey) {
+        localToken = await ensureSessionToken().catch(() => "");
+      }
       const reqHeaders: Record<string, string> = {
         "Content-Type": "application/json"
       };
@@ -2621,7 +2715,7 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
           model: selectedModel,
           messages: formattedHistory,
           temperature: 0.1,
-          max_tokens: 65536,
+          max_tokens: 16384,
           top_p: 0.95,
           stream: true
         })
@@ -3440,6 +3534,7 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
         unresolvedErrorCount={unresolvedErrorCount}
         setIsShortcutsHelpOpen={setIsShortcutsHelpOpen}
         setIsMathPlotterOpen={setIsMathPlotterOpen}
+        onOpenCodeRunner={() => setIsCodeRunnerOpen(true)}
         onOpenMusicStudio={() => setActiveTab("music-studio")}
         onOpenCalendar={() => setActiveTab("calendar-agent")}
         onOpenSecurityShield={() => setIsSecurityShieldOpen(true)}
@@ -3452,7 +3547,7 @@ If the user wants an SVG graphic, write inline SVG inside a <file path="images/g
         handleUploadToDrive={handleUploadToDrive}
         borderSettings={borderSettings}
         isGuest={currentAuthMode === "guest"}
-        onExitWorkspace={() => setHasEnteredWorkspace(false)}
+        onExitWorkspace={handleExitWorkspace}
         isSidebarOpen={isSidebarOpen}
         onToggleSidebar={() => setIsSidebarOpen(prev => !prev)}
       />

@@ -28,7 +28,8 @@ import {
   orderBy, 
   limit, 
   ensureAuth, 
-  auth 
+  auth,
+  activeFirebaseConfig as firebaseConfig
 } from "../services/firebaseConfig";
 import { 
   syncFilesToFirebase, 
@@ -37,7 +38,6 @@ import {
   loadMessagesFromFirebase 
 } from "../services/firebaseSyncService";
 import { VirtualFile, Message, AgentAction } from "../types";
-import firebaseConfig from "../../firebase-applet-config.json";
 
 interface FirebaseDatabaseDashboardProps {
   theme: "light" | "dark" | string;
@@ -613,14 +613,23 @@ export const FirebaseDatabaseDashboard: React.FC<FirebaseDatabaseDashboardProps>
 {`rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /workspaces/{workspaceId} {
-      allow read, write: if true;
+    function isAuthenticated() {
+      return request.auth != null;
     }
-    match /chat_sessions/{sessionId} {
-      allow read, write: if true;
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    match /workspaces/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+    match /chat_sessions/{userId} {
+      allow read, write: if isOwner(userId);
     }
     match /agent_audit_logs/{logId} {
-      allow read, write: if true;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
     }
   }
 }`}

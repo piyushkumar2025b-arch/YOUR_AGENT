@@ -101,6 +101,14 @@ export const FileShareQRHub: React.FC<FileShareQRHubProps> = ({ theme }) => {
           processFileSharing(updated);
         }
       };
+      reader.onerror = () => {
+        processedCount++;
+        if (processedCount === rawFiles.length && newFilesList.length > 0) {
+          const updated = [...files, ...newFilesList];
+          setFiles(updated);
+          processFileSharing(updated);
+        }
+      };
       reader.readAsDataURL(file);
     });
   };

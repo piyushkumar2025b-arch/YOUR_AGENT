@@ -63,8 +63,8 @@ interface YouTubeSearchPlayerAgentProps {
   onExportNotesFile?: (fileName: string, content: string) => void;
 }
 
-// User-provided YouTube Data API v3 Key
-export const DEFAULT_YOUTUBE_API_KEY = "AIzaSyBhfIGT_egiFDDR_07wO1mZIvzzhTf46fI";
+// Optional user-provided YouTube Data API v3 Key
+export const DEFAULT_YOUTUBE_API_KEY = "";
 
 // Curated Popular Search Presets & Featured Channels
 const FEATURED_SEARCH_PRESETS = [
@@ -777,12 +777,13 @@ Return pure clean HTML with inline styling suitable for dark or light themes, wi
               <button
                 type="button"
                 onClick={() => {
-                  setTempKeyInput(DEFAULT_YOUTUBE_API_KEY);
-                  testApiKey(DEFAULT_YOUTUBE_API_KEY);
+                  setTempKeyInput("");
+                  setKeyTestStatus("idle");
+                  setKeyTestMessage("");
                 }}
                 className="text-[11px] text-slate-400 hover:text-white underline cursor-pointer"
               >
-                Reset to Default Key
+                Clear / Use Server Default
               </button>
 
               <div className="flex items-center gap-2">

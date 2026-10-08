@@ -4,6 +4,7 @@
  */
 
 import DOMPurify from "dompurify";
+import { getAuthHeaders } from "./apiAuth";
 
 // 1. String & HTML Sanitization against XSS
 export function sanitizeString(input: unknown): string {
@@ -44,9 +45,32 @@ export function sanitizeSvg(svgString: string): string {
   try {
     if (typeof window !== "undefined" && DOMPurify && typeof DOMPurify.sanitize === "function") {
       return DOMPurify.sanitize(svgString, {
-        USE_PROFILES: { svg: true, svgFilters: true },
-        FORBID_TAGS: ["script", "foreignObject", "iframe", "object", "embed", "base"],
-        FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover", "onfocus", "xlink:href", "formaction"]
+        USE_PROFILES: { svg: true, svgFilters: false },
+        FORBID_TAGS: [
+          "script",
+          "foreignObject",
+          "iframe",
+          "object",
+          "embed",
+          "base",
+          "animate",
+          "animateMotion",
+          "animateTransform",
+          "set"
+        ],
+        FORBID_ATTR: [
+          "onerror",
+          "onload",
+          "onclick",
+          "onmouseover",
+          "onfocus",
+          "formaction",
+          "href",
+          "xlink:href",
+          "src",
+          "style"
+        ],
+        ALLOWED_URI_REGEXP: /^(?:(?:data:image\/(?:png|gif|jpeg|webp);base64,)|#)/i
       });
     }
   } catch (e) {
@@ -56,6 +80,7 @@ export function sanitizeSvg(svgString: string): string {
   return svgString
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
     .replace(/<foreignObject\b[^>]*>[\s\S]*?<\/foreignObject>/gi, "")
+    .replace(/<animate\b[^>]*>[\s\S]*?<\/animate>/gi, "")
     .replace(/on\w+\s*=\s*(['"]).*?\1/gi, "")
     .replace(/on\w+\s*=\s*[^>\s]+/gi, "")
     .replace(/javascript\s*:/gi, "no-javascript:");
@@ -90,17 +115,36 @@ export interface SafeFetchOptions extends RequestInit {
   retries?: number;
   fallbackData?: any;
   dedupe?: boolean;
+  responseType?: "json" | "text" | "arrayBuffer";
+}
+
+function isRetryableStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+function isIdempotentMethod(method: string): boolean {
+  return ["GET", "HEAD", "OPTIONS", "PUT", "DELETE"].includes(method.toUpperCase());
 }
 
 export async function safeFetch<T>(
   url: string,
   options: SafeFetchOptions = {}
 ): Promise<{ ok: boolean; data: T | null; error: string | null; status: number }> {
-  const { timeoutMs = 8000, retries = 1, fallbackData = null, dedupe = true, ...fetchOpts } = options;
+  const {
+    timeoutMs = 8000,
+    retries = 1,
+    fallbackData = null,
+    dedupe = true,
+    responseType = "json",
+    ...fetchOpts
+  } = options;
 
-  // Deduplicate identical pending requests
-  const dedupeKey = `${fetchOpts.method || "GET"}:${url}`;
-  if (dedupe && inFlightRequests.has(dedupeKey)) {
+  const requestMethod = String(fetchOpts.method || "GET").toUpperCase();
+  const canDedupe = dedupe && (requestMethod === "GET" || requestMethod === "HEAD");
+  const dedupeKey = canDedupe ? `${requestMethod}:${url}` : "";
+
+  // Deduplicate identical pending read requests
+  if (canDedupe && dedupeKey && inFlightRequests.has(dedupeKey)) {
     return inFlightRequests.get(dedupeKey);
   }
 
@@ -118,8 +162,14 @@ export async function safeFetch<T>(
       }, timeoutMs);
 
       try {
+        const authH = typeof window !== "undefined" ? getAuthHeaders() : {};
         const response = await fetch(url, {
+          credentials: fetchOpts.credentials || "include",
           ...fetchOpts,
+          headers: {
+            ...authH,
+            ...((fetchOpts.headers as Record<string, string>) || {})
+          },
           signal: controller.signal
         });
 
@@ -128,12 +178,23 @@ export async function safeFetch<T>(
         if (!response.ok) {
           const errorText = await response.text().catch(() => response.statusText);
           lastError = `Server returned status ${response.status}: ${errorText.slice(0, 150)}`;
-          if (attempt <= retries) continue;
+          const retryAllowed = isRetryableStatus(response.status) && isIdempotentMethod(requestMethod);
+          if (retryAllowed && attempt <= retries) {
+            await new Promise((res) => setTimeout(res, 300 * attempt));
+            continue;
+          }
           return { ok: false, data: fallbackData, error: lastError, status: response.status };
         }
 
-        const data = await response.json().catch(() => null);
-        return { ok: true, data: data as T, error: null, status: response.status };
+        let parsedData: any = null;
+        if (responseType === "text") {
+          parsedData = await response.text();
+        } else if (responseType === "arrayBuffer") {
+          parsedData = await response.arrayBuffer();
+        } else {
+          parsedData = await response.json().catch(() => null);
+        }
+        return { ok: true, data: parsedData as T, error: null, status: response.status };
 
       } catch (err: any) {
         clearTimeout(timeoutId);
@@ -151,8 +212,8 @@ export async function safeFetch<T>(
           lastError = err.message || "Network request failed";
         }
 
-        if (attempt <= retries) {
-          await new Promise((res) => setTimeout(res, 300));
+        if (isIdempotentMethod(requestMethod) && attempt <= retries) {
+          await new Promise((res) => setTimeout(res, 300 * attempt));
         }
       }
     }
@@ -161,17 +222,23 @@ export async function safeFetch<T>(
   };
 
   const promise = executeFetch().finally(() => {
-    inFlightRequests.delete(dedupeKey);
+    if (canDedupe && dedupeKey) {
+      inFlightRequests.delete(dedupeKey);
+    }
   });
 
-  if (dedupe) {
+  if (canDedupe && dedupeKey) {
     inFlightRequests.set(dedupeKey, promise);
   }
 
   return promise;
 }
 
-// 5. Secure Storage Wrapper (Safe LocalStorage with Obfuscation & Error Suppression)
+/**
+ * Browser-local storage helper with encoding & error suppression.
+ * NOTE: Browser storage is client-visible and does NOT provide cryptographic
+ * secrecy against XSS. Sensitive sessions remain in HttpOnly cookies.
+ */
 export const secureStorage = {
   getItem: <T>(key: string, fallback: T): T => {
     try {
